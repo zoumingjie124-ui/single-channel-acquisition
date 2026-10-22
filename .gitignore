@@ -1,0 +1,38 @@
+# Keil MDK 编译产物
+*.o
+*.d
+*.crf
+*.axf
+*.hex
+*.bin
+*.map
+*.lst
+*.dep
+*.lnp
+*.htm
+*.iex
+*.sct
+*.bak
+*.scvd
+*.uvguix.*
+*.uvoptx
+build.log
+JLinkLog.txt
+Objects/
+Listings/
+DebugConfig/
+RTE/_*/
+MDK-ARM/DataAcq/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+host/capture_*.csv
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

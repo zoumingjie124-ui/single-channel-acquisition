@@ -1,0 +1,10 @@
+# 上位机依赖
+# 安装：pip install -r requirements.txt
+#
+# 注意：本项目的协议层（protocol.py）与测试只用标准库，
+# 即使不装这些包也能跑 `python -m unittest discover -s tests`。
+
+PySide6>=6.5
+pyqtgraph>=0.13
+pyserial>=3.5
+numpy>=1.24
