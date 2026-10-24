@@ -154,21 +154,51 @@ python main.py
 
 ---
 
-## 9. 2026-10-24 复审更新
+## 7. 2026-10-24 复审更新
 
-本轮**只改文档与测试**，固件业务逻辑未改动。
+### 7.1 本轮实际改了什么（不限于文档）
 
-| 项 | 说明 |
-|---|---|
-| 重新编译 | `Code=20584  RO=976  RW=108  ZI=4956`，0 Error 0 Warning。原 README 引用的 20548 是"整帧丢失检测"合入之前的数字，已更正 |
-| 用例数更正 | 原报告写 14 / 5 / 5，实测为 **14 / 4 / 6**（`test_protocol` 14、`test_pipeline` 4、`test_firmware_sync` 6），合计仍是 24 |
-| 界面测试增强 | `tests/gui_smoke.py` 新增三项检查：① 演示流跑 3 秒后"整帧丢失"必须为 0；② 注入 `seq 10 → 13` 后计数必须 +2；③ 注入 `BOOT` 后重新对齐且不计缺口。第 ②③ 项是反向验证——防止"恒为 0"其实是功能没实现 |
-| 协议补充 | `PROTOCOL.md` 4.4 增加说明：ACK 的帧头 `SEQ` 是设备全局帧序号，不回显命令序号；上位机做丢帧判断时不能跳过 ACK |
+| 提交 | 类型 | 内容 |
+|---|---|---|
+| `b1b1d63` | **固件 + 上位机** | 帧头 SEQ 改为设备全局帧序号；涉及 `App/Src/app_task.c`、`App/Src/app_cmd.c`、`App/Inc/app_task.h`、`Core/Src/usart.c`；上位机新增整帧丢失检测 |
+| `8884244` | **固件** | `s_dma_buf` 补 `volatile` |
+| `81e1705` | **固件** | 恢复标志竞态修复、计数器清零加临界区、环形缓冲断言补下界 |
+| `fa8496c` | 文档 / 测试 | 用例数更正、`gui_smoke` 增强、协议补充 |
 
-### 本轮实际执行结果
+> **勘误**：上一版本节写的是"本轮只改文档与测试，固件业务逻辑未改动"。
+> 这句是错的 —— 本轮确实改了 `app_task.c`、`app_cmd.c`、`usart.c`。
+> 本文档最大的价值是"说过的话都能对得上"，所以这处必须改，而不是悄悄删掉。
+
+### 7.2 四处关键修复（现象 / 根因 / HAL 依据 / 修法）
+
+| # | 现象 | 根因 | HAL 依据 | 修法 |
+|---|---|---|---|---|
+| 1 | 编译 0 Error、DMA 在跑，但上位机**一帧都收不到**，采样环恒为空 | HAL 只负责把 ADC 结果搬进 `s_dma_buf`；"取走并投递"必须由用户在回调里完成。没有回调，数据被下一次转换直接覆盖 | `ADC_DMAConvCplt()`（`stm32f1xx_hal_adc.c:2333`）只更新状态并调 `HAL_ADC_ConvCpltCallback()`；HAL 不搬运、不缓存样本 | `adc.c` 实现 `ConvHalfCpltCallback` / `ConvCpltCallback` / `ErrorCallback` → 分别调 `app_measure_on_half/_on_cplt/_on_error` |
+| 2 | 连续发帧时偶发 `HAL_BUSY`，整帧丢失 | `HAL_UART_Transmit_DMA()` 在上一帧未完成时**不排队，直接返回 BUSY** | `HAL_UART_Transmit_DMA()` 首行 `if (huart->gState == HAL_UART_STATE_READY)`，否则直接返回 `HAL_BUSY`（不排队） | `app_tx.c` 单帧串行：发完（`TxCpltCallback`）才取下一批；`s_busy` 标志由回调清除 |
+| 3 | 接收不定长命令时，短帧要**等缓冲填满**才上交，响应延迟大 | F1 的基础 DMA 接收没有"不定长"语义，只能按满长度触发 | `HAL_UARTEx_ReceiveToIdle_DMA()` + `HAL_UARTEx_RxEventCallback()`：IDLE 与 TC 都会先 abort DMA、把 `RxState` 置 READY 再回调；**HT 事件也会进来** | `usart.c` 用 `ReceiveToIdle_DMA`；回调里只处理 `Size`，HT 直接忽略（否则同一批数据会被重复上交） |
+| 4 | 一次噪声（ORE）之后，接收/采样**永久停摆**，且无任何提示 | HAL 的错误路径只回调 `HAL_ADC_ErrorCallback` / `HAL_UART_ErrorCallback`，**不会自动重启**传输；`s_busy` 之类标志若不清，队列永远卡死 | `ADC_DMAError()` 只置 `HAL_ADC_STATE_ERROR_DMA` 并回调 `HAL_ADC_ErrorCallback()`（weak 空函数），**不重启任何传输** | ADC：ISR 只置标志 → 主循环 `ADC1_RecoverInit()`（DeInit→Init→配通道→校准）+ `app_measure_start()`，限速 1 s。串口：`ErrorCallback` 清 ORE 并**仅在 `gState != BUSY_TX` 时**释放发送队列 |
+
+第 2、4 条最容易踩的坑是同一处：**错误回调里不能无条件重置发送状态**。
+接收侧的 ORE/FE/NE 也会进 `HAL_UART_ErrorCallback`，此时 TX DMA 可能还在跑；
+把 `s_busy` 清零会让主循环立刻再调 `HAL_UART_Transmit_DMA()` 并拿到 BUSY，
+这批已出队的数据就被误记成"丢弃"——既真丢数据，又让统计失真。
+
+### 7.3 构建尺寸的变化（为什么是 20584）
+
+| 阶段 | Code | 变化 | 原因 |
+|---|---|---|---|
+| 整帧丢失检测合入前 | 20548 | — | README 里那个旧数字 |
+| 整帧丢失检测合入后 | 20576 | +28 | 帧序号统一 + 上位机侧对应改动 |
+| `volatile` 修复后 | 20576 | **+0** | `volatile` 只约束编译器优化，不生成指令，尺寸不变是正常的 |
+| 竞态修复 + PRIMASK 后 | **20584** | +8 | `__get_PRIMASK` / `__set_PRIMASK` 的 MRS/MSR，以及两条失败路径上的标志回置 |
+
+> 所以"20584 和修复前一模一样"是误读：修复前是 **20576**，不是 20584。
+> 本文数字取自 2026-10-24 20:29 的全量重编译（`UV4.exe -r`），不是从旧日志抄的。
+
+### 7.4 本轮实际执行结果
 
 ```
-UV4.exe -r DataAcq.uvprojx
+UV4.exe -r DataAcq.uvprojx                                 # 2026-10-24 20:29
 Program Size: Code=20584  RO-data=976  RW-data=108  ZI-data=4956
 "DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).        warning 计数：0
 
