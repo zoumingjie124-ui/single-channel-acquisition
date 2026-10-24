@@ -144,9 +144,17 @@ uint8_t app_measure_poll_recovery(void)
   s_try_started = 1u;
   s_last_try_ms = now;
 
+  /* 先清标志，再启动，顺序不能反：
+     app_measure_start() 成功的那一刻 DMA/ADC 中断就重新使能了。若硬件故障仍在，
+     ISR 会立刻把 s_recover_req 置 1；如果清除放在 start 之后，就会把这个"刚刚
+     发生的新错误"一起清掉 —— 采样实际已经停了，却再也没人来恢复（静默停摆）。
+     任何失败路径都必须把标志挂回去，否则同样会丢失恢复请求。 */
+  s_recover_req = 0u;
+
   /* 第一步：把 ADC + DMA 复位到上电状态（失败则本次放弃，等下一轮） */
   if (ADC1_RecoverInit() == 0u)
   {
+    s_recover_req = 1u;
     s_recover_fail++;
     return APP_MEAS_RECOVER_FAIL;
   }
@@ -155,11 +163,11 @@ uint8_t app_measure_poll_recovery(void)
      其实根本没在搬数据"的假象 */
   if (app_measure_start() == 0u)
   {
+    s_recover_req = 1u;
     s_recover_fail++;
     return APP_MEAS_RECOVER_FAIL;
   }
 
-  s_recover_req = 0u;
   s_recover_ok++;
   return APP_MEAS_RECOVER_OK;
 }
@@ -206,10 +214,18 @@ uint16_t app_measure_ring_level(void)
 
 void app_measure_reset_counters(void)
 {
+  uint32_t primask = __get_PRIMASK();
+
+  /* s_drop / s_err 在 ISR 里是"读-改-写"（LDR/ADD/STR），不是原子的。
+     主循环这四行清零若被中断打断，那次自增会丢掉，计数偏小。
+     只保护四条 STR，代价几个周期；用 PRIMASK 保存/恢复，避免嵌套关中断时误开。 */
+  __disable_irq();
   s_drop = 0u;
   s_err  = 0u;
   s_recover_ok   = 0u;
   s_recover_fail = 0u;
+  __set_PRIMASK(primask);
+
   /* 注意：不清 s_recover_req。若此刻正有待恢复的故障，
      清掉标志会让采样永久停摆，这是比"计数不准"严重得多的问题。 */
 }

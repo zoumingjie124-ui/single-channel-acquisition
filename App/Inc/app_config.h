@@ -69,8 +69,8 @@
 #if ((APP_FILTER_DEPTH & (APP_FILTER_DEPTH - 1u)) != 0u)
 #error "APP_FILTER_DEPTH must be a power of two"
 #endif
-#if ((APP_SAMPLE_RING_SIZE & (APP_SAMPLE_RING_SIZE - 1u)) != 0u)
-#error "APP_SAMPLE_RING_SIZE must be a power of two"
+#if ((APP_SAMPLE_RING_SIZE & (APP_SAMPLE_RING_SIZE - 1u)) != 0u) || (APP_SAMPLE_RING_SIZE < 2u)
+#error "APP_SAMPLE_RING_SIZE must be a power of two and >= 2"
 #endif
 #if ((APP_TX_RING_SIZE & (APP_TX_RING_SIZE - 1u)) != 0u)
 #error "APP_TX_RING_SIZE must be a power of two"
