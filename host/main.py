@@ -96,6 +96,12 @@ class DemoSource(QObject):
     def stop(self):
         self._timer.stop()
 
+    def next_frame_seq(self) -> int:
+        """帧头 SEQ：所有帧（含 ACK 应答）共用一个逐帧 +1 的计数器，与固件一致"""
+        seq = self._seq
+        self._seq = (self._seq + 1) & 0xFF
+        return seq
+
     def _tick(self):
         self._t += 10
         self._phase += 0.012
@@ -115,20 +121,18 @@ class DemoSource(QObject):
         elif filt >= self.warn:
             lvl = 1
         if lvl != self.level:
-            ev = encode(0x82, self._seq, self._pack_event(self._t, self.level, lvl, filt))
-            self._seq = (self._seq + 1) & 0xFF
+            ev = encode(0x82, self.next_frame_seq(), self._pack_event(self._t, self.level, lvl, filt))
             self.level = lvl
             self._changes = getattr(self, "_changes", 0) + 1
             self._on_bytes(ev)
 
         payload = self._pack_sample(self._t, raw, filt, lvl, self._t // 10)
-        self._on_bytes(encode(0x81, self._seq, payload))
-        self._seq = (self._seq + 1) & 0xFF
+        self._on_bytes(encode(0x81, self.next_frame_seq(), payload))
 
         self._stat_acc += 1
         if self._stat_acc >= 100:
             self._stat_acc = 0
-            self._on_bytes(encode(0x83, self._seq, self._pack_stat()))
+            self._on_bytes(encode(0x83, self.next_frame_seq(), self._pack_stat()))
 
     @staticmethod
     def _pack_sample(t, raw, filt, lvl, seq8):
@@ -163,8 +167,11 @@ class MainWindow(QMainWindow):
         self.samples = 0
         self.expected_seq = None
         self.gap_count = 0
+        self.expected_frame_seq = None   # 帧头 SEQ 期望值，用于整帧丢失检测
+        self.frame_gap_count = 0
         self.offset = 0
         self.last_t = 0
+        self._tx_seq = 0                 # 命令帧发送序号，独立计数
 
         self.t_buf = deque(maxlen=PLOT_POINTS)
         self.raw_buf = deque(maxlen=PLOT_POINTS)
@@ -290,6 +297,8 @@ class MainWindow(QMainWindow):
         form.addRow("异常(uart/rx/帧)", self.lbl_errs)
         form.addRow("状态切换", self.lbl_changes)
         form.addRow("序号缺口", self.lbl_gaps)
+        self.lbl_frame_gaps = QLabel("-")
+        form.addRow("整帧丢失", self.lbl_frame_gaps)
         lay.addLayout(form)
 
         thr = QGroupBox("阈值 (mV)")
@@ -374,6 +383,9 @@ class MainWindow(QMainWindow):
         self.lbl_conn.setStyleSheet("color:#C62828;font-weight:500;")
 
     def _on_connected(self, port):
+        # 重连后重新对齐序号：断开期间的丢帧由"断开"提示负责，不混进缺口统计
+        self.expected_seq = None
+        self.expected_frame_seq = None
         self.lbl_conn.setText("已连接 %s" % port)
         self.lbl_conn.setStyleSheet("color:#2E7D32;font-weight:500;")
         self._log("已连接 %s" % port)
@@ -401,7 +413,11 @@ class MainWindow(QMainWindow):
 
     # ---------------------------- 数据接收 ----------------------------
     def _next_seq(self) -> int:
-        return self.parser.frames & 0xFF
+        # 独立的发送序号计数器。不能取 self.parser.frames：那个解析器只在
+        # 演示模式被喂数据，真实串口模式下恒为 0
+        seq = self._tx_seq
+        self._tx_seq = (self._tx_seq + 1) & 0xFF
+        return seq
 
     def _send(self, data: bytes):
         if self.worker is not None:
@@ -414,16 +430,30 @@ class MainWindow(QMainWindow):
     def _handle_demo_cmd(self, data: bytes):
         # 演示模式下模拟设备应答，让按钮也有反馈
         frames = self.cmd_parser.feed(data)
-        for msg_type, seq, payload in frames:
+        for msg_type, _seq, payload in frames:
             if msg_type == 0x10 and len(payload) == 4:
                 import struct
                 w, c = struct.unpack("<HH", payload)
                 self.demo_src.warn, self.demo_src.crit = w, c
                 self.line_warn.setValue(w)
                 self.line_crit.setValue(c)
-                self._on_frames(self.parser.feed(encode(T_ACK, seq, bytes([0x10, 0]))))
+                # ACK 的帧头 SEQ 走演示源的帧计数，保持逐帧 +1 的连续性（与固件一致）
+                self._on_frames(self.parser.feed(
+                    encode(T_ACK, self.demo_src.next_frame_seq(), bytes([0x10, 0]))))
 
     def _on_frames(self, frames):
+        # 帧头 SEQ 缺口检测：设备所有帧（含 ACK/STAT/EVENT）共用一个逐帧 +1
+        # 的序号，跳变即整帧丢失或损坏（PROTOCOL.md 第 2/7 节）。
+        # BOOT 帧意味着设备重启、序号从头计数，重新对齐不记缺口。
+        for msg_type, seq, _payload in frames:
+            if msg_type == T_BOOT:
+                self.expected_frame_seq = (seq + 1) & 0xFF
+                continue
+            if self.expected_frame_seq is not None and seq != self.expected_frame_seq:
+                self.frame_gap_count += (seq - self.expected_frame_seq) & 0xFF
+                self.lbl_frame_gaps.setText(str(self.frame_gap_count))
+            self.expected_frame_seq = (seq + 1) & 0xFF
+
         for obj in decode_many(frames):
             if isinstance(obj, Sample):
                 self._on_sample(obj)

@@ -10,6 +10,7 @@
 #include "app_cmd.h"
 #include "app_config.h"
 #include "app_proto.h"
+#include "app_task.h"
 #include "app_tx.h"
 
 #define RX_MASK ((uint16_t)(APP_RX_RING_SIZE - 1u))
@@ -34,7 +35,7 @@ static uint32_t s_rx_ovf;
 static char     s_line[APP_LINE_BUF_SIZE];
 static uint8_t  s_line_len;
 
-static void send_ack(uint8_t req_type, uint8_t req_seq, uint8_t result)
+static void send_ack(uint8_t req_type, uint8_t result)
 {
   uint8_t payload[PROTO_LEN_ACK];
   uint8_t frame[PROTO_MAX_FRAME];
@@ -42,7 +43,9 @@ static void send_ack(uint8_t req_type, uint8_t req_seq, uint8_t result)
 
   payload[0] = req_type;
   payload[1] = result;
-  n = proto_encode(PROTO_T_ACK, req_seq, payload, PROTO_LEN_ACK,
+  /* 帧头 SEQ 用设备的全局帧计数，不回显命令 SEQ：
+     协议约定所有帧逐帧 +1，上位机据此检测整帧丢失 */
+  n = proto_encode(PROTO_T_ACK, app_task_next_frame_seq(), payload, PROTO_LEN_ACK,
                    frame, (uint16_t)sizeof(frame));
   if (n != 0u)
   {
@@ -54,6 +57,8 @@ static void send_ack(uint8_t req_type, uint8_t req_seq, uint8_t result)
 static void on_frame(uint8_t type, uint8_t seq, const uint8_t *payload, uint8_t len)
 {
   uint8_t res = CMD_RES_OK;
+
+  (void)seq;   /* 命令 SEQ 不校验；ACK 帧头用全局帧序号，见 send_ack */
 
   if (s_ops == 0)
   {
@@ -126,7 +131,7 @@ static void on_frame(uint8_t type, uint8_t seq, const uint8_t *payload, uint8_t 
   }
 
   /* 所有 PC->MCU 的命令都回一帧 ACK，上位机据此确认执行结果 */
-  send_ack(type, seq, res);
+  send_ack(type, res);
 }
 
 /* ---------------------------- 文本通道 ---------------------------- */

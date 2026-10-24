@@ -12,8 +12,12 @@
   *   2. 重新挂接收。
   *   解析、组帧、应答全部在主循环完成。
   *
-  * 已核对 FW_F1 源码：IDLE 事件发生时 HAL 先把 DMA abort、RxState 置为 READY，
-  * 然后才回调 HAL_UARTEx_RxEventCallback()，所以回调里重新挂接收是安全的。
+ * 已核对 FW_F1 源码：IDLE 和 DMA 缓冲满（TC）两种事件，HAL 都是先把 DMA
+ * abort、RxState 置为 READY，然后才回调 HAL_UARTEx_RxEventCallback()，
+ * 所以回调里重新挂接收是安全的。
+ * 但 DMA 半传输（HT）事件不同：UART_DMARxHalfCplt() 直接回调，此刻
+ * RxState 仍是 BUSY_RX、DMA 还在收——重挂会返回 BUSY，此刻上交的字节
+ * 也会在随后的 IDLE/TC 里重复上交。所以 HT 必须直接忽略。
   ******************************************************************************
   */
 #include "usart.h"
@@ -64,13 +68,20 @@ uint32_t usart_rx_fail_count(void)
 }
 
 /**
-  * @brief  接收事件回调：IDLE 空闲 或 DMA 缓冲满 都会进来
+  * @brief  接收事件回调：IDLE 空闲、DMA 缓冲满（TC）、DMA 半传输（HT）都会进来
   * @param  Size 本次收到的字节数
   */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
   if (huart->Instance == USART1)
   {
+    /* HT 时接收还在进行（RxState == BUSY_RX）：重挂必然 BUSY，且这批数据
+       会随 IDLE/TC 再次上交。留在 DMA 缓冲里等下一个事件即可，无需处理 */
+    if (huart->RxEventType == HAL_UART_RXEVENT_HT)
+    {
+      return;
+    }
+
     if ((Size > 0u) && (Size <= APP_RX_DMA_BUF_LEN))
     {
       app_cmd_rx_isr(s_rx_dma, Size);

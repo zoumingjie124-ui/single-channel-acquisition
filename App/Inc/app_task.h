@@ -22,4 +22,8 @@ void     app_task_on_key(void);
 
 uint32_t app_task_uptime_ms(void);
 
+/* 取当前帧序号并 +1。设备发出的所有帧（含 ACK）共用这一个计数器，
+   上位机按“逐帧 +1”检测整帧丢失，不能各发各的 */
+uint8_t  app_task_next_frame_seq(void);
+
 #endif /* __APP_TASK_H */

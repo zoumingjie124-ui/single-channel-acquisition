@@ -40,6 +40,7 @@ typedef struct
   volatile uint8_t  key_pending;
   uint32_t  stat_last_ms;
   uint8_t   frame_seq;
+  uint32_t  sample_seq;   /* 采样连续序号：清零命令不清它，否则上位机会把清零误判成序号缺口 */
   app_level_t last_level;
 
   app_filter_t filter;
@@ -82,12 +83,11 @@ static void emit_frame(uint8_t type, const uint8_t *payload, uint8_t len)
   uint8_t frame[PROTO_MAX_FRAME];
   uint16_t n;
 
-  n = proto_encode(type, s_ctx.frame_seq, payload, len, frame, (uint16_t)sizeof(frame));
+  n = proto_encode(type, app_task_next_frame_seq(), payload, len, frame, (uint16_t)sizeof(frame));
   if (n != 0u)
   {
     (void)app_tx_write(frame, n);
   }
-  s_ctx.frame_seq++;
 }
 
 /* --------------------------- 帧内容构造 --------------------------- */
@@ -111,7 +111,7 @@ static void emit_sample(uint16_t mv_raw, uint16_t mv_filt, app_level_t level)
   proto_put_u16(&p[4], mv_raw);
   proto_put_u16(&p[6], mv_filt);
   p[8] = (uint8_t)level;
-  p[9] = (uint8_t)(s_ctx.stats.sample & 0xFFu);   /* 低 8 位样本序号，用于上位机查缺口 */
+  p[9] = (uint8_t)(s_ctx.sample_seq & 0xFFu);   /* 低 8 位采样序号：独立计数，清零命令不影响连续性 */
   emit_frame(PROTO_T_SAMPLE, p, PROTO_LEN_SAMPLE);
 }
 
@@ -169,6 +169,7 @@ static void ctx_get_stat(void)
 
 static void ctx_reset_stats(void)
 {
+  /* sample_seq 有意不清：上位机靠它的连续性查缺口，清零命令不能打断 */
   s_ctx.stats.sample  = 0u;
   s_ctx.stats.drop    = 0u;
   s_ctx.stats.adc_err = 0u;
@@ -344,6 +345,7 @@ static void process_sample(uint16_t raw)
   app_level_t level = app_alarm_update(&s_ctx.alarm, mv_filt);
 
   s_ctx.stats.sample++;
+  s_ctx.sample_seq++;
 
   if (level != s_ctx.last_level)
   {
@@ -406,6 +408,7 @@ void app_task_init(void)
   s_ctx.key_pending   = 0u;
   s_ctx.stat_last_ms  = 0u;
   s_ctx.frame_seq     = 0u;
+  s_ctx.sample_seq    = 0u;
   s_ctx.last_level    = APP_LEVEL_NORMAL;
   s_ctx.led_forced    = 0u;
   s_ctx.led_forced_on = 0u;
@@ -494,4 +497,9 @@ void app_task_on_key(void)
 uint32_t app_task_uptime_ms(void)
 {
   return s_ctx.tick_ms;
+}
+
+uint8_t app_task_next_frame_seq(void)
+{
+  return s_ctx.frame_seq++;
 }
