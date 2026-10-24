@@ -21,8 +21,12 @@
 
 #define RING_MASK ((uint16_t)(APP_SAMPLE_RING_SIZE - 1u))
 
-/* DMA 目标缓冲。半字数组 + 强制转换，见文件头说明第 1 条 */
-static uint16_t s_dma_buf[ADC_DMA_BUF_LEN];
+/* DMA 目标缓冲。半字数组 + 强制转换，见文件头说明第 1 条。
+   volatile 不能省：这块内存由 DMA 在后台写入，CPU 侧看不到任何写操作，
+   编译器有权把相邻两次读取合并成一次（尤其在 -O2 以上）。
+   虽然本工程的读取都紧跟在 DMA 中断之后、实际很难被优化掉，
+   但"靠编译器手下留情"不是正确做法，这里必须显式声明。 */
+static volatile uint16_t s_dma_buf[ADC_DMA_BUF_LEN];
 
 /* 采样环形缓冲：ISR 写 head，主循环写 tail */
 static uint16_t s_ring[APP_SAMPLE_RING_SIZE];
