@@ -70,8 +70,13 @@ def run():
     QTimer.singleShot(DURATION_MS, app.quit)
     app.exec()
 
-    # 顺手存一张界面截图，方便没有环境时查看最终形态
-    shot = os.path.join(os.path.dirname(os.path.dirname(HERE)), "docs", "gui_demo.png")
+    # 截图：默认写到临时目录，避免每跑一次就把仓库里的 docs/gui_demo.png 弄脏。
+    # 需要更新文档配图时加 --shot 参数。
+    if "--shot" in sys.argv:
+        shot = os.path.join(os.path.dirname(os.path.dirname(HERE)), "docs", "gui_demo.png")
+    else:
+        import tempfile
+        shot = os.path.join(tempfile.gettempdir(), "gui_demo_smoke.png")
     os.makedirs(os.path.dirname(shot), exist_ok=True)
     win.grab().save(shot)
     print("截图已保存    : %s" % shot)
