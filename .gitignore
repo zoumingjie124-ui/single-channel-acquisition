@@ -16,8 +16,8 @@
 *.scvd
 *.uvguix.*
 *.uvoptx
-build.log
-MDK-ARM/*.log
+*.log
+*.log.*
 JLinkLog.txt
 Objects/
 Listings/

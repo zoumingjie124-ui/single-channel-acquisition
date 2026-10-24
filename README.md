@@ -59,7 +59,10 @@ Data acquisition/
 │   ├── main.py                   PySide6 界面
 │   ├── tests/                    24 项单测 + 界面冒烟测试
 │   └── tools/serial_dump.py      命令行抓帧（只需 pyserial）
-└── docs/PROTOCOL.md         ← 协议逐字段说明
+└── docs/
+    ├── PROTOCOL.md             协议逐字段说明
+    ├── CUBEMX_CONFIG.md        CubeMX 配置对照表（本项目无 .ioc，原因见文内）
+    └── TEST_REPORT.md          编译/测试记录与待办
 ```
 
 ---
