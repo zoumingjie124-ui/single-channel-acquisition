@@ -2,7 +2,7 @@
 
 > 本文件只记录**真正执行过**的验证。没跑过的一律写在"未验证"里，不做事后美化。
 
-- 日期：2026-10-17
+- 日期：2026-10-17（初版）／2026-10-24 复审更新
 - 环境：Keil MDK5（ARMCC V5.06，`D:\K5\UV4\UV4.exe`）、Python 3.13.12（受管环境）、Windows
 
 ---
@@ -13,14 +13,14 @@
 cd MDK-ARM
 D:\K5\UV4\UV4.exe -b DataAcq.uvprojx -j0 -o build.log     → exit code 0
 
-Program Size: Code=20548  RO-data=976  RW-data=108  ZI-data=4948
+Program Size: Code=20576  RO-data=976  RW-data=108  ZI-data=4956
 "DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).
 ```
 
 | 资源 | 占用 | 容量 | 比例 |
 |---|---|---|---|
-| Flash | 20548 + 976 = 21524 B（21.0 KiB） | 64 KiB | 33% |
-| RAM（静态） | 108 + 4948 = 5056 B（4.9 KiB） | 20 KiB | 25% |
+| Flash | 20576 + 976 = 21552 B（21.0 KiB） | 64 KiB | 33% |
+| RAM（静态） | 108 + 4956 = 5064 B（4.9 KiB） | 20 KiB | 25% |
 
 编译过程中修掉的问题（均为真实出现过的错误）：
 
@@ -121,8 +121,8 @@ RESULT: PASS
 |---|---|
 | 固件编译 | ✅ 已实际执行，0 Error / 0 Warning |
 | 协议编解码单测 | ✅ 已实际执行，14 项通过 |
-| 端到端离线回放 | ✅ 已实际执行，5 项通过（合成 100Hz 流，非真实串口） |
-| 固件/上位机常量一致性 | ✅ 已实际执行，5 项通过（**静态检查**） |
+| 端到端离线回放 | ✅ 已实际执行，4 项通过（合成 100Hz 流，非真实串口） |
+| 固件/上位机常量一致性 | ✅ 已实际执行，6 项通过（**静态检查**） |
 | 上位机脚本语法 | ✅ `py_compile` 全部通过 |
 | 上位机界面实际运行 | ✅ 已离屏实际运行 3 秒，PASS，并自动保存截图 |
 | 上位机串口连接 | ❌ **未测**（需要板子与 USB-TTL） |
@@ -150,4 +150,33 @@ python main.py --demo
 
 :: 4. 接板子
 python main.py
+```
+
+---
+
+## 9. 2026-10-24 复审更新
+
+本轮**只改文档与测试**，固件业务逻辑未改动。
+
+| 项 | 说明 |
+|---|---|
+| 重新编译 | `Code=20576  RO=976  RW=108  ZI=4956`，0 Error 0 Warning。原 README 引用的 20548 是"整帧丢失检测"合入之前的数字，已更正 |
+| 用例数更正 | 原报告写 14 / 5 / 5，实测为 **14 / 4 / 6**（`test_protocol` 14、`test_pipeline` 4、`test_firmware_sync` 6），合计仍是 24 |
+| 界面测试增强 | `tests/gui_smoke.py` 新增三项检查：① 演示流跑 3 秒后"整帧丢失"必须为 0；② 注入 `seq 10 → 13` 后计数必须 +2；③ 注入 `BOOT` 后重新对齐且不计缺口。第 ②③ 项是反向验证——防止"恒为 0"其实是功能没实现 |
+| 协议补充 | `PROTOCOL.md` 4.4 增加说明：ACK 的帧头 `SEQ` 是设备全局帧序号，不回显命令序号；上位机做丢帧判断时不能跳过 ACK |
+
+### 本轮实际执行结果
+
+```
+UV4.exe -r DataAcq.uvprojx
+Program Size: Code=20576  RO-data=976  RW-data=108  ZI-data=4956
+"DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).        warning 计数：0
+
+python -m unittest discover -s tests -v                    Ran 24 tests — OK
+
+QT_QPA_PLATFORM=offscreen python tests/gui_smoke.py
+  采样点 293 / 告警事件 2 / 序号缺口 0 / 整帧丢失 0 / 解析错误 0
+  注入缺口检测  : OK（期望 +2，实得 +2）
+  BOOT 重新对齐 : OK
+  RESULT: PASS
 ```
