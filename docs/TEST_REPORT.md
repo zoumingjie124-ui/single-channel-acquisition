@@ -13,13 +13,13 @@
 cd MDK-ARM
 D:\K5\UV4\UV4.exe -b DataAcq.uvprojx -j0 -o build.log     → exit code 0
 
-Program Size: Code=20576  RO-data=976  RW-data=108  ZI-data=4956
+Program Size: Code=20584  RO-data=976  RW-data=108  ZI-data=4956
 "DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).
 ```
 
 | 资源 | 占用 | 容量 | 比例 |
 |---|---|---|---|
-| Flash | 20576 + 976 = 21552 B（21.0 KiB） | 64 KiB | 33% |
+| Flash | 20584 + 976 = 21560 B（21.0 KiB） | 64 KiB | 33% |
 | RAM（静态） | 108 + 4956 = 5064 B（4.9 KiB） | 20 KiB | 25% |
 
 编译过程中修掉的问题（均为真实出现过的错误）：
@@ -160,7 +160,7 @@ python main.py
 
 | 项 | 说明 |
 |---|---|
-| 重新编译 | `Code=20576  RO=976  RW=108  ZI=4956`，0 Error 0 Warning。原 README 引用的 20548 是"整帧丢失检测"合入之前的数字，已更正 |
+| 重新编译 | `Code=20584  RO=976  RW=108  ZI=4956`，0 Error 0 Warning。原 README 引用的 20548 是"整帧丢失检测"合入之前的数字，已更正 |
 | 用例数更正 | 原报告写 14 / 5 / 5，实测为 **14 / 4 / 6**（`test_protocol` 14、`test_pipeline` 4、`test_firmware_sync` 6），合计仍是 24 |
 | 界面测试增强 | `tests/gui_smoke.py` 新增三项检查：① 演示流跑 3 秒后"整帧丢失"必须为 0；② 注入 `seq 10 → 13` 后计数必须 +2；③ 注入 `BOOT` 后重新对齐且不计缺口。第 ②③ 项是反向验证——防止"恒为 0"其实是功能没实现 |
 | 协议补充 | `PROTOCOL.md` 4.4 增加说明：ACK 的帧头 `SEQ` 是设备全局帧序号，不回显命令序号；上位机做丢帧判断时不能跳过 ACK |
@@ -169,7 +169,7 @@ python main.py
 
 ```
 UV4.exe -r DataAcq.uvprojx
-Program Size: Code=20576  RO-data=976  RW-data=108  ZI-data=4956
+Program Size: Code=20584  RO-data=976  RW-data=108  ZI-data=4956
 "DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).        warning 计数：0
 
 python -m unittest discover -s tests -v                    Ran 24 tests — OK

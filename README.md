@@ -5,7 +5,7 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
 
 > **验证状态（务必先看）**
 >
-> - 固件：✅ **已实际编译通过**，`0 Error / 0 Warning`，Code 20576B / RO 976B / RW 108B / ZI 4956B
+> - 固件：✅ **已实际编译通过**，`0 Error / 0 Warning`，Code 20584B / RO 976B / RW 108B / ZI 4956B
 > - 协议层单测：✅ **24 项全部通过**（`host/tests/`，含固件常量一致性检查）
 > - 上位机界面：✅ **已离屏实际运行 3 秒并通过**（含“整帧丢失”恒为 0 的断言 + 注入缺口的反向验证），截图见 `docs/gui_demo.png`
 > - **上板实测：❌ 完全没有做过。** 本文所有功能描述都是"设计预期"，不是实测结论。
@@ -81,7 +81,7 @@ D:\K5\UV4\UV4.exe -b DataAcq.uvprojx -j0 -o build.log
 期望输出：
 
 ```
-Program Size: Code=20576  RO-data=976  RW-data=108  ZI-data=4956
+Program Size: Code=20584  RO-data=976  RW-data=108  ZI-data=4956
 "DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).
 ```
 
