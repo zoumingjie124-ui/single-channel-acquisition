@@ -17,6 +17,7 @@
 *.uvguix.*
 *.uvoptx
 build.log
+MDK-ARM/*.log
 JLinkLog.txt
 Objects/
 Listings/
