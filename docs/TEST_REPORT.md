@@ -156,11 +156,15 @@ python main.py
 
 ## 7. 2026-10-24 复审更新
 
+> **证据强度声明**：本项目**尚未上板、也未与上位机联机**。
+> 本节所有"现象"均来自**代码与 HAL 源码的静态分析**，不是实测复现。
+> 每行都标了证据强度：`静态可证` = 读代码即可确认；`推演` = 由代码路径推断，需实测验证。
+
 ### 7.1 本轮实际改了什么（不限于文档）
 
 | 提交 | 类型 | 内容 |
 |---|---|---|
-| `b1b1d63` | **固件 + 上位机** | 帧头 SEQ 改为设备全局帧序号；涉及 `App/Src/app_task.c`、`App/Src/app_cmd.c`、`App/Inc/app_task.h`、`Core/Src/usart.c`；上位机新增整帧丢失检测 |
+| `b1b1d63` | **固件 + 上位机** | 修掉 4 个缺陷（见 7.2）：HT 重复上交、seq8 清零回跳、帧头 SEQ 无人检查、命令 SEQ 恒为 0 |
 | `8884244` | **固件** | `s_dma_buf` 补 `volatile` |
 | `81e1705` | **固件** | 恢复标志竞态修复、计数器清零加临界区、环形缓冲断言补下界 |
 | `fa8496c` | 文档 / 测试 | 用例数更正、`gui_smoke` 增强、协议补充 |
@@ -169,33 +173,49 @@ python main.py
 > 本轮实际改动了 `app_task.c`、`app_cmd.c`、`app_task.h`、`usart.c` 以及 `app_measure.c`。
 > 本文档的价值在于"写下的每一句都能对得上代码"，所以错的地方要留痕改正，而不是悄悄抹掉。
 
-### 7.2 四处关键修复（现象 / 根因 / HAL 依据 / 修法）
+### 7.2 本轮真正修掉的四个缺陷
 
-| # | 现象 | 根因 | HAL 依据 | 修法 |
+| # | 缺陷 | 现象（存在该缺陷时） | 根因 | HAL / 代码证据 | 修法 | 强度 |
+|---|---|---|---|---|---|---|
+| 1 | **HT 回调重复上交** | 一次 IDLE 收到的字节被上交两次；回调里重挂接收直接拿到 `HAL_BUSY` | `HAL_UARTEx_RxEventCallback` 在**半传输**时也会被调用，此刻接收仍在进行，`Size` 只是"填到一半"，不是"收完了" | `UART_DMARxHalfCplt()`（`stm32f1xx_hal_uart.c:3104`）只置 `RxEventType = HAL_UART_RXEVENT_HT` 后**直接回调**，不 abort DMA、不改 `RxState`；IDLE/TC 路径才会先 abort 再回调 | `usart.c` 回调首行判 `huart->RxEventType == HAL_UART_RXEVENT_HT` → 直接 `return`，数据留到 IDLE/TC 再上交 | 静态可证 |
+| 2 | **seq8 清零回跳** | 上位机下发 `reset` 后，采样序号从 255 跳回 0，被误判成"丢了 255 个样本" | SAMPLE 载荷第 9 字节的 seq8 原来取 `stats.sample & 0xFF`，而 `reset` 命令会把这个计数清零 | `app_task.c` 的 `ctx_reset_stats()` 清 `stats.sample`；修前 `emit_sample()` 直接用它算 seq8 | 新增独立计数器 **`sample_seq`**（`reset` 有意不清），seq8 改取 `sample_seq & 0xFF` | 静态可证 |
+| 3 | **帧头 SEQ 无人检查** | 整帧丢失**完全不可见**：CRC 只能发现"内容被改坏"，发现不了"帧根本没到" | 上位机只解析载荷里的 seq8，从不看帧头 SEQ；且帧头 SEQ 修前是各模块各发各的，ACK 还回显命令序号，根本无法用于连续性判断 | 修前 `main.py` 无 `expected_frame_seq` 字段；固件 `emit_frame()` 各自 `s_ctx.frame_seq++` | 固件：所有出站帧共用 `app_task_next_frame_seq()`；上位机：`expected_frame_seq` + `frame_gap_count`，遇到 BOOT 帧重新对齐 | 静态可证 |
+| 4 | **命令 SEQ 恒为 0** | 上位机发出的每一条命令，帧头 SEQ 都是 0 | `_next_seq()` 取 `self.parser.frames`，但真实串口的数据由 `LinkWorker` 内部**另一个** `FrameParser` 解析，`MainWindow.self.parser` 只在演示模式被喂数据 | `main.py` 中 `self.parser.feed()` 仅出现在 `_feed_demo()`；`link.py:37` 在子线程里自建 `FrameParser` | 上位机改用独立计数器 `_tx_seq` | 静态可证 |
+
+> 第 2、3 条是同一个思路的两面：**"序号"必须只表达一件事**。
+> `sample_seq` 只表达"第几个样本"（reset 不能动），帧头 SEQ 只表达"第几帧出站"（全体共用）；
+> 混用就会让上位机的统计失去意义。
+
+### 7.3 四处关键设计（不是本轮修复，也未经实测）
+
+下表是**项目成型时就定下的设计**，不是这一轮修的东西。
+"现象"一列已改为"**如果不这样做会怎样**"，全部属于推演，未上板验证。
+
+| # | 如果不这样做（风险，推演） | 根因 | HAL 依据 | 本项目做法 |
 |---|---|---|---|---|
-| 1 | 编译 0 Error、DMA 在跑，但上位机**一帧都收不到**，采样环恒为空 | HAL 只负责把 ADC 结果搬进 `s_dma_buf`；"取走并投递"必须由用户在回调里完成。没有回调，数据被下一次转换直接覆盖 | `ADC_DMAConvCplt()`（`stm32f1xx_hal_adc.c:2333`）只更新状态并调 `HAL_ADC_ConvCpltCallback()`；HAL 不搬运、不缓存样本 | `adc.c` 实现 `ConvHalfCpltCallback` / `ConvCpltCallback` / `ErrorCallback` → 分别调 `app_measure_on_half/_on_cplt/_on_error` |
-| 2 | 连续发帧时偶发 `HAL_BUSY`，整帧丢失 | `HAL_UART_Transmit_DMA()` 在上一帧未完成时**不排队，直接返回 BUSY** | `HAL_UART_Transmit_DMA()` 首行 `if (huart->gState == HAL_UART_STATE_READY)`，否则直接返回 `HAL_BUSY`（不排队） | `app_tx.c` 单帧串行：发完（`TxCpltCallback`）才取下一批；`s_busy` 标志由回调清除 |
-| 3 | 接收不定长命令时，短帧要**等缓冲填满**才上交，响应延迟大 | F1 的基础 DMA 接收没有"不定长"语义，只能按满长度触发 | `HAL_UARTEx_ReceiveToIdle_DMA()` + `HAL_UARTEx_RxEventCallback()`：IDLE 与 TC 都会先 abort DMA、把 `RxState` 置 READY 再回调；**HT 事件也会进来** | `usart.c` 用 `ReceiveToIdle_DMA`；回调里只处理 `Size`，HT 直接忽略（否则同一批数据会被重复上交） |
-| 4 | 一次噪声（ORE）之后，接收/采样**永久停摆**，且无任何提示 | HAL 的错误路径只回调 `HAL_ADC_ErrorCallback` / `HAL_UART_ErrorCallback`，**不会自动重启**传输；`s_busy` 之类标志若不清，队列永远卡死 | `ADC_DMAError()` 只置 `HAL_ADC_STATE_ERROR_DMA` 并回调 `HAL_ADC_ErrorCallback()`（weak 空函数），**不重启任何传输** | ADC：ISR 只置标志 → 主循环 `ADC1_RecoverInit()`（DeInit→Init→配通道→校准）+ `app_measure_start()`，限速 1 s。串口：`ErrorCallback` 清 ORE 并**仅在 `gState != BUSY_TX` 时**释放发送队列 |
+| 1 | DMA 在跑，但采样环恒为空，上位机一帧都收不到 | HAL 只把 ADC 结果搬进 `s_dma_buf`；"取走并投递"必须由用户在回调里完成 | `ADC_DMAConvCplt()`（`stm32f1xx_hal_adc.c:2333`）只更新状态并调 `HAL_ADC_ConvCpltCallback()`；HAL 不搬运、不缓存样本 | `adc.c` 实现 `ConvHalfCpltCallback` / `ConvCpltCallback` / `ErrorCallback` |
+| 2 | 连续发帧时偶发 `HAL_BUSY`，整帧丢失 | `HAL_UART_Transmit_DMA()` 上一帧未完成时不排队，直接返回 `HAL_BUSY` | 函数首行 `if (huart->gState == HAL_UART_STATE_READY)`，否则返回 `HAL_BUSY` | `app_tx.c` 单帧串行：发完（`TxCpltCallback`）才取下一批 |
+| 3 | 接收不定长命令时，短帧要等缓冲填满才上交 | F1 的基础 DMA 接收没有"不定长"语义 | `HAL_UARTEx_ReceiveToIdle_DMA()` + `RxEventCallback()`：IDLE/TC 先 abort DMA、置 `RxState = READY` 再回调 | `usart.c` 用 `ReceiveToIdle_DMA`，只处理 IDLE/TC，忽略 HT（见 7.2 第 1 条） |
+| 4 | 一次噪声（ORE）之后接收/采样永久停摆，且无任何提示 | HAL 的错误路径只回调，**不会自动重启**传输 | `ADC_DMAError()` 只置 `HAL_ADC_STATE_ERROR_DMA` 并回调 weak 空函数 | ADC：ISR 只置标志 → 主循环 `ADC1_RecoverInit()` + `app_measure_start()`，限速 1 s；串口：`ErrorCallback` 清 ORE，且**仅在 `gState != BUSY_TX` 时**释放发送队列 |
 
-第 2、4 条最容易踩的坑是同一处：**错误回调里不能无条件重置发送状态**。
+第 3、4 条最容易踩的坑是同一处：**错误回调里不能无条件重置发送状态**。
 接收侧的 ORE/FE/NE 也会进 `HAL_UART_ErrorCallback`，此时 TX DMA 可能还在跑；
 把 `s_busy` 清零会让主循环立刻再调 `HAL_UART_Transmit_DMA()` 并拿到 BUSY，
 这批已出队的数据就被误记成"丢弃"——既真丢数据，又让统计失真。
 
-### 7.3 构建尺寸的变化（为什么是 20584）
+### 7.4 构建尺寸的变化（为什么是 20584）
 
 | 阶段 | Code | 变化 | 原因 |
 |---|---|---|---|
 | 整帧丢失检测合入前 | 20548 | — | README 里那个旧数字 |
-| 整帧丢失检测合入后 | 20576 | +28 | 帧序号统一 + 上位机侧对应改动 |
-| `volatile` 修复后 | 20576 | **+0** | `volatile` 只约束编译器优化，不生成指令，尺寸不变是正常的 |
+| 整帧丢失检测合入后 | 20576 | +28 | 帧序号统一（`app_task_next_frame_seq` + `sample_seq`） |
+| `volatile` 修复后 | 20576 | **+0** | `volatile` 只约束编译器优化，不生成指令 |
 | 竞态修复 + PRIMASK 后 | **20584** | +8 | `__get_PRIMASK` / `__set_PRIMASK` 的 MRS/MSR，以及两条失败路径上的标志回置 |
 
-> 所以"20584 和修复前一模一样"是误读：修复前是 **20576**，不是 20584。
-> 本文数字取自 2026-10-24 20:29 的全量重编译（`UV4.exe -r`），不是从旧日志抄的。
+> "20584 和修复前一模一样"是拿 20584 跟 20584 比：修复前的基数是 **20576**。
+> 本文数字取自 2026-10-24 20:29 的全量重编译，不是从旧日志抄的。
 
-### 7.4 本轮实际执行结果
+### 7.5 本轮实际执行结果
 
 ```
 UV4.exe -r DataAcq.uvprojx                                 # 2026-10-24 20:29
