@@ -23,6 +23,7 @@ import protocol as P  # noqa: E402
 
 FW_DIR = os.path.normpath(os.path.join(HERE, "..", "App"))
 PROTO_H = os.path.join(FW_DIR, "Inc", "app_proto.h")
+CONFIG_H = os.path.join(FW_DIR, "Inc", "app_config.h")
 TASK_C = os.path.join(FW_DIR, "Src", "app_task.c")
 
 
@@ -42,6 +43,7 @@ class TestFirmwareSync(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.fw = parse_defines(PROTO_H)
+        cls.cfg = parse_defines(CONFIG_H)
 
     def test_frame_markers(self):
         self.assertEqual(self.fw["PROTO_SOF0"], P.SOF0)
@@ -67,6 +69,11 @@ class TestFirmwareSync(unittest.TestCase):
             self.assertIn(name, self.fw, "固件头文件缺少 %s" % name)
             self.assertEqual(self.fw[name], value, "%s 两端不一致：固件 0x%02X，上位机 0x%02X"
                              % (name, self.fw[name], value))
+
+    def test_physical_constants(self):
+        """电压量程与滞回必须和固件一致：上位机若写死数值，改固件就会悄悄漂移"""
+        self.assertEqual(self.cfg["APP_ADC_VREF_MV"], P.ADC_VREF_MV)
+        self.assertEqual(self.cfg["APP_THR_HYST_MV"], P.THR_HYST_MV)
 
     def test_payload_lengths(self):
         self.assertEqual(self.fw["PROTO_LEN_SAMPLE"], 10)

@@ -28,8 +28,6 @@ typedef enum
   *   sample  : 成功进入流水线的采样点数
   *   drop    : 采样环形缓冲溢出而丢弃的点数（可观测的丢点）
   *   adc_err : ADC / DMA 传输错误次数
-  *   uart_err: 串口硬件错误次数（ORE/FE/NE/PE）
-  *   rx_err  : 接收重新武装失败次数（链路可能已停）
   *   frame_err: 收到的帧 CRC 或格式错误次数
   *   tx_drop : 发送环形缓冲满而丢弃的字节数
   */
@@ -38,8 +36,6 @@ typedef struct
   uint32_t sample;
   uint32_t drop;
   uint32_t adc_err;
-  uint32_t uart_err;
-  uint32_t rx_err;
   uint32_t frame_err;
   uint32_t cmd_ok;
   uint32_t cmd_err;

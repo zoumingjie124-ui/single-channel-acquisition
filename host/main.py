@@ -50,6 +50,8 @@ from protocol import (
     LEVEL_NAMES,
     Sample,
     Stat,
+    ADC_VREF_MV,
+    THR_HYST_MV,
     T_ACK,
     T_BOOT,
     T_EVENT,
@@ -538,9 +540,10 @@ class MainWindow(QMainWindow):
     def _apply_thr(self):
         w = self.sp_warn.value()
         c = self.sp_crit.value()
-        if w <= 50 or c < (w + 50) or c > 3300:
+        if w <= THR_HYST_MV or c < (w + THR_HYST_MV) or c > ADC_VREF_MV:
             QMessageBox.warning(self, "参数不合法",
-                                "需满足 50 < WARN 且 WARN + 50 <= CRIT <= 3300（与固件校验一致）")
+                                "需满足 %d < WARN 且 WARN + %d <= CRIT <= %d（与固件校验一致）"
+                                % (THR_HYST_MV, THR_HYST_MV, ADC_VREF_MV))
             return
         self._send(build_set_thr(w, c, self._next_seq()))
 

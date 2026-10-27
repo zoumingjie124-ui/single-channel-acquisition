@@ -13,14 +13,14 @@
 cd MDK-ARM
 D:\K5\UV4\UV4.exe -b DataAcq.uvprojx -j0 -o build.log     → exit code 0
 
-Program Size: Code=20584  RO-data=976  RW-data=108  ZI-data=4956
+Program Size: Code=20616  RO-data=976  RW-data=108  ZI-data=4948
 "DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).
 ```
 
 | 资源 | 占用 | 容量 | 比例 |
 |---|---|---|---|
-| Flash | 20584 + 976 = 21560 B（21.0 KiB） | 64 KiB | 33% |
-| RAM（静态） | 108 + 4956 = 5064 B（4.9 KiB） | 20 KiB | 25% |
+| Flash | 20616 + 976 = 21592 B（21.1 KiB） | 64 KiB | 33% |
+| RAM（静态） | 108 + 4948 = 5056 B（4.9 KiB） | 20 KiB | 25% |
 
 编译过程中修掉的问题（均为真实出现过的错误）：
 
@@ -44,7 +44,7 @@ Program Size: Code=20584  RO-data=976  RW-data=108  ZI-data=4956
 ```
 cd host
 python -m unittest discover -s tests -v
-Ran 24 tests — OK
+Ran 26 tests — OK
 ```
 
 | 测试文件 | 数量 | 覆盖内容 |
@@ -203,16 +203,19 @@ python main.py
 把 `s_busy` 清零会让主循环立刻再调 `HAL_UART_Transmit_DMA()` 并拿到 BUSY，
 这批已出队的数据就被误记成"丢弃"——既真丢数据，又让统计失真。
 
-### 7.4 构建尺寸的变化（为什么是 20584）
+### 7.4 构建尺寸的变化（为什么是 20616）
 
 | 阶段 | Code | 变化 | 原因 |
 |---|---|---|---|
 | 整帧丢失检测合入前 | 20548 | — | README 里那个旧数字 |
 | 整帧丢失检测合入后 | 20576 | +28 | 帧序号统一（`app_task_next_frame_seq` + `sample_seq`） |
 | `volatile` 修复后 | 20576 | **+0** | `volatile` 只约束编译器优化，不生成指令 |
-| 竞态修复 + PRIMASK 后 | **20584** | +8 | `__get_PRIMASK` / `__set_PRIMASK` 的 MRS/MSR，以及两条失败路径上的标志回置 |
+| 竞态修复 + PRIMASK 后 | 20584 | +8 | `__get_PRIMASK` / `__set_PRIMASK` 的 MRS/MSR，以及两条失败路径上的标志回置 |
+| 统计清零 / 整帧原子 / AA 容错 / 阈值校验 | 20620 | +36 | 新增 `usart_reset_counters()`（含 PRIMASK）、`app_tx_write` 提前返回、`SOF1` 多分支、阈值比较改为 `WARN + HYST` |
+| 删除 `stats.uart_err` / `stats.rx_err` 两个死字段 | **20616** | -4 | 少两条赋值；`app_stats_t` 小 8 字节，ZI 4956 → 4948 |
 
 > "20584 和修复前一模一样"是拿 20584 跟 20584 比：修复前的基数是 **20576**。
+> v5.1.0 之后是 **20616**（见 7.6），基数变成 20584。
 > 本文数字取自 2026-10-24 20:29 的全量重编译，不是从旧日志抄的。
 
 ### 7.5 本轮实际执行结果
@@ -230,3 +233,27 @@ QT_QPA_PLATFORM=offscreen python tests/gui_smoke.py
   BOOT 重新对齐 : OK
   RESULT: PASS
 ```
+
+### 7.6 v5.1.0 追加的四处整理（2026-10-27）
+
+| 项 | 内容 | 理由 |
+|---|---|---|
+| 文档同步 | README / 本报告的尺寸与用例数更新为实测值 | 避免"文档比代码旧"的老问题重演 |
+| 补测试 | `test_protocol.py` 新增 `test_double_sof0_prefix`（AA / AA AA / AA AA AA 三种前缀） | 固件的 SOF1 容错此前**零覆盖**；Python 侧用 `find(b"\xAA\x55")` 天然支持，这条用例把两端行为钉住 |
+| 补测试 | `test_firmware_sync.py` 新增 `test_physical_constants`（`ADC_VREF_MV` / `THR_HYST_MV`） | 上位机原先把 50 和 3300 写死在界面校验里，改固件就会悄悄漂移 |
+| 去死字段 | 删除 `app_stats_t` 的 `uart_err` / `rx_err` | STAT 帧读的是 `usart_err_count()` 等 live 计数，这两个字段只写不读 |
+
+**执行结果**
+
+```
+UV4.exe -r DataAcq.uvprojx                                 # 2026-10-27 23:45
+Program Size: Code=20616  RO-data=976  RW-data=108  ZI-data=4948
+"DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).        warning 计数：0
+
+python -m unittest discover -s tests                       Ran 26 tests — OK
+
+QT_QPA_PLATFORM=offscreen python tests/gui_smoke.py        RESULT: PASS
+```
+
+尺寸变化：20584 → 20620（用户这轮的四项修复，+36）→ **20616**（删两个死字段，−4）。
+ZI 同步从 4956 降到 4948，因为 `app_stats_t` 少了两个 `uint32_t`。

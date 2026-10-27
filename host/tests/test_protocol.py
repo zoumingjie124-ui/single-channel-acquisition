@@ -123,6 +123,27 @@ class TestParserRobustness(unittest.TestCase):
         frames = parser.feed(b"\x01\x02\xAA\x13garbage" + frame)
         self.assertEqual(len(frames), 1, "带垃圾前缀后没有重新对上帧")
 
+    def test_double_sof0_prefix(self):
+        """连续 0xAA 帧头：AA AA 55 ... 必须能解出，不能整帧丢失。
+
+        固件侧的 PROTO_P_SOF1 在收到 0xAA 时保持本状态（把新的 0xAA 当作帧头首字节），
+        Python 侧用 find(b"\xAA\x55") 天然支持。两边的行为必须一致。
+        """
+        frame = self._sample_frame(seq8=9)
+
+        parser = P.FrameParser()
+        frames = parser.feed(b"\xAA\xAA" + frame)
+        self.assertEqual(len(frames), 1, "连续 0xAA 之后的一帧被丢掉了")
+        self.assertEqual(frames[0][1], 1)
+
+        parser2 = P.FrameParser()
+        frames2 = parser2.feed(b"\xAA\xAA\xAA" + frame)
+        self.assertEqual(len(frames2), 1, "连续三个 0xAA 之后的一帧被丢掉了")
+
+        parser3 = P.FrameParser()
+        frames3 = parser3.feed(b"\xAA" + frame)
+        self.assertEqual(len(frames3), 1, "单个 0xAA 前缀不应影响解析")
+
     def test_bad_crc_is_rejected_then_recover(self):
         good = self._sample_frame()
         bad = bytearray(good)

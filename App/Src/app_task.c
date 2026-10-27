@@ -173,8 +173,6 @@ static void ctx_reset_stats(void)
   s_ctx.stats.sample  = 0u;
   s_ctx.stats.drop    = 0u;
   s_ctx.stats.adc_err = 0u;
-  s_ctx.stats.uart_err = 0u;
-  s_ctx.stats.rx_err  = 0u;
   s_ctx.stats.frame_err = 0u;
   s_ctx.stats.cmd_ok  = 0u;
   s_ctx.stats.cmd_err = 0u;

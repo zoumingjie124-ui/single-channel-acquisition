@@ -24,6 +24,10 @@ HEADER_LEN = 5
 CRC_LEN = 2
 MAX_PAYLOAD = 40
 
+# 与固件 app_config.h 对齐的物理常量（由 tests/test_firmware_sync.py 校验，勿单边修改）
+ADC_VREF_MV = 3300      # APP_ADC_VREF_MV
+THR_HYST_MV = 50        # APP_THR_HYST_MV
+
 # 设备 -> 上位机
 T_SAMPLE = 0x81
 T_EVENT = 0x82
