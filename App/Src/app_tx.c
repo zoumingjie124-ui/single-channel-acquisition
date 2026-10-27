@@ -60,7 +60,13 @@ uint16_t app_tx_write(const uint8_t *data, uint16_t len)
 
   /* 留一个空位用于区分"满"和"空" */
   free_cnt = (uint16_t)((TX_MASK + 1u) - 1u - app_tx_pending());
-  written  = (len <= free_cnt) ? len : free_cnt;
+  if (len > free_cnt)
+  {
+    /* 空间不足以容纳完整数据时整包丢弃，避免产生半截残帧破坏接收端解析 */
+    s_drop_bytes += (uint32_t)len;
+    return 0u;
+  }
+  written = len;
 
   for (i = 0u; i < written; i++)
   {
@@ -68,10 +74,6 @@ uint16_t app_tx_write(const uint8_t *data, uint16_t len)
   }
   s_head = (uint16_t)((s_head + written) & TX_MASK);
 
-  if (written < len)
-  {
-    s_drop_bytes += (uint32_t)(len - written);
-  }
   return written;
 }
 

@@ -185,6 +185,7 @@ static void ctx_reset_stats(void)
   app_measure_reset_counters();
   app_cmd_reset_counters();
   app_tx_reset_drop();
+  usart_reset_counters();
 }
 
 static void ctx_ping(void)

@@ -123,16 +123,27 @@ uint8_t proto_parser_feed(proto_parser_t *p, uint8_t byte, proto_frame_cb_t cb)
       return PROTO_R_NONE;
 
     case PROTO_P_SOF1:
-      if (byte != PROTO_SOF1)
+      if (byte == PROTO_SOF1)
       {
-        /* 0xAA 后面不是 0x55：可能是噪声里的单个 0xAA，重新找帧头 */
+        p->buf[1] = byte;
+        p->idx    = 2u;
+        p->state  = PROTO_P_TYPE;
+        return PROTO_R_NONE;
+      }
+      else if (byte == PROTO_SOF0)
+      {
+        /* 连续收到 0xAA（如 0xAA 0xAA 0x55）：保持在 SOF1 状态，
+           将当前的 0xAA 视为新的帧头第一字节 */
+        p->buf[0] = byte;
+        p->idx    = 1u;
+        return PROTO_R_NONE;
+      }
+      else
+      {
+        /* 0xAA 后面既不是 0x55 也不是 0xAA：可能是噪声，重新找帧头 */
         p->state = PROTO_P_SOF0;
         return PROTO_R_ERROR;
       }
-      p->buf[1] = byte;
-      p->idx    = 2u;
-      p->state  = PROTO_P_TYPE;
-      return PROTO_R_NONE;
 
     case PROTO_P_TYPE:
       p->buf[2] = byte;

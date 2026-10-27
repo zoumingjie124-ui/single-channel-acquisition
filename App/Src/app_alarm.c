@@ -104,12 +104,13 @@ uint8_t app_alarm_set_thresholds(app_alarm_t *a, uint16_t warn_mv, uint16_t crit
   {
     return 0u;
   }
-  /* 必须满足 回差 < WARN < CRIT <= 量程，否则滞回减法会下溢成超大值 */
+  /* 必须满足 回差 < WARN 且 WARN + 回差 <= CRIT <= 量程，
+     否则滞回减法会下溢，或者 CRIT 的释放门槛低于 WARN 导致滞回区间倒置 */
   if (warn_mv <= APP_THR_HYST_MV)
   {
     return 0u;
   }
-  if (crit_mv <= warn_mv)
+  if (crit_mv < (uint16_t)(warn_mv + APP_THR_HYST_MV))
   {
     return 0u;
   }

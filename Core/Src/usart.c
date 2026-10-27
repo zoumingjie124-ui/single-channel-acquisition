@@ -67,6 +67,15 @@ uint32_t usart_rx_fail_count(void)
   return s_rx_fail;
 }
 
+void usart_reset_counters(void)
+{
+  uint32_t primask = __get_PRIMASK();
+  __disable_irq();
+  s_err_cnt = 0u;
+  s_rx_fail = 0u;
+  __set_PRIMASK(primask);
+}
+
 /**
   * @brief  接收事件回调：IDLE 空闲、DMA 缓冲满（TC）、DMA 半传输（HT）都会进来
   * @param  Size 本次收到的字节数

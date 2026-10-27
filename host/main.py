@@ -538,9 +538,9 @@ class MainWindow(QMainWindow):
     def _apply_thr(self):
         w = self.sp_warn.value()
         c = self.sp_crit.value()
-        if w <= 50 or c <= w or c > 3300:
+        if w <= 50 or c < (w + 50) or c > 3300:
             QMessageBox.warning(self, "参数不合法",
-                                "需满足 50 < WARN < CRIT <= 3300（与固件校验一致）")
+                                "需满足 50 < WARN 且 WARN + 50 <= CRIT <= 3300（与固件校验一致）")
             return
         self._send(build_set_thr(w, c, self._next_seq()))
 

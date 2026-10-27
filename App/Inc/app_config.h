@@ -84,8 +84,8 @@
 #if (APP_THR_WARN_MV <= APP_THR_HYST_MV)
 #error "APP_THR_WARN_MV must be greater than APP_THR_HYST_MV"
 #endif
-#if (APP_THR_CRIT_MV <= APP_THR_WARN_MV)
-#error "APP_THR_CRIT_MV must be greater than APP_THR_WARN_MV"
+#if (APP_THR_CRIT_MV < (APP_THR_WARN_MV + APP_THR_HYST_MV))
+#error "APP_THR_CRIT_MV must be at least APP_THR_WARN_MV + APP_THR_HYST_MV"
 #endif
 #if (APP_THR_CRIT_MV > APP_ADC_VREF_MV)
 #error "APP_THR_CRIT_MV must not exceed APP_ADC_VREF_MV"

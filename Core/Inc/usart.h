@@ -22,6 +22,7 @@ void     usart_start_rx(void);
 /* 统计：硬件错误（ORE/FE/NE/PE）与重新武装失败 */
 uint32_t usart_err_count(void);
 uint32_t usart_rx_fail_count(void);
+void     usart_reset_counters(void);
 
 #ifdef __cplusplus
 }
