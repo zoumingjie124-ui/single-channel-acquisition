@@ -129,11 +129,22 @@ class DemoSource(QObject):
         self.samples += 1
         self._sample_seq += 1
 
-        lvl = 0
-        if filt >= self.crit:
-            lvl = 2
-        elif filt >= self.warn:
-            lvl = 1
+        # 判级必须和固件一致：相邻级别逐级跳 + 50 mV 回差（滞回）。
+        # 早先这里是无回差的简单比较，结果演示流会在 2394 mV 就"WARN -> NORMAL"，
+        # 与固件（要掉到 <= warn-50 = 2350 才退出 WARN）自相矛盾，
+        # 截出来的界面事件表一眼就能看出破绽。
+        lvl = self.level
+        if lvl == 0:
+            if filt >= self.warn:
+                lvl = 1
+        elif lvl == 1:
+            if filt >= self.crit:
+                lvl = 2
+            elif filt < self.warn - THR_HYST_MV:
+                lvl = 0
+        else:
+            if filt < self.crit - THR_HYST_MV:
+                lvl = 1
         if lvl != self.level:
             ev = encode(T_EVENT, self.next_frame_seq(), self._pack_event(self._t, self.level, lvl, filt))
             self.level = lvl

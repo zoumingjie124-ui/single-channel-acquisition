@@ -32,8 +32,9 @@ except ImportError as exc:            # pragma: no cover
 import main as M  # noqa: E402
 from protocol import T_BOOT, T_SAMPLE, encode  # noqa: E402,F401
 
-DURATION_MS = 4000   # 4s：3s 时实测只能拿到约 245 点（退出时事件队列未排空），
-                     # 门槛 200 的余量太薄，机器一忙就偶发 FAIL
+DURATION_MS = 4050   # 4 s + 50 ms：STAT 是 1 Hz，多等半拍让 t=4000 ms 那条 STAT
+                     # 被处理掉，否则截图里"运行时间 3.0 s"会和"采样 400+"看着对不上
+                     # （其实只是 STAT 天然滞后一拍，不是数据丢了）
 
 
 def _sample_frame(seq, t_ms=1000):
@@ -75,26 +76,44 @@ def run():
     win = M.MainWindow(demo=True)
     win.show()
 
-    QTimer.singleShot(DURATION_MS, app.quit)
-    app.exec()
-
-    # 截图：默认写到临时目录，避免每跑一次就把仓库里的 docs/gui_demo.png 弄脏。
-    # 需要更新文档配图时加 --shot 参数。
+    # 截图与取值都必须在事件循环**内**完成。
+    # 否则 app.quit() 之后窗口会走 closeEvent -> _disconnect()，顶部标签变成
+    # 红色的"未连接"（演示模式应是琥珀色的"演示模式（无硬件）"），
+    # 而且 STAT 只到第 3 秒、采样数却已跑到第 4 秒，两个数字对不上。
     if "--shot" in sys.argv:
         shot = os.path.join(os.path.dirname(os.path.dirname(HERE)), "docs", "gui_demo.png")
     else:
         import tempfile
         shot = os.path.join(tempfile.gettempdir(), "gui_demo_smoke.png")
     os.makedirs(os.path.dirname(shot), exist_ok=True)
-    win.grab().save(shot)
-    print("截图已保存    : %s" % shot)
 
-    samples = win.samples
-    points = len(win.t_buf)
-    rows = win.table.rowCount()
-    gaps = win.gap_count
-    frame_gaps = win.frame_gap_count
-    errors = win.parser.errors
+    snap = {}
+
+    def on_done():
+        snap["samples"] = win.samples
+        snap["points"] = len(win.t_buf)
+        snap["rows"] = win.table.rowCount()
+        snap["gaps"] = win.gap_count
+        snap["frame_gaps"] = win.frame_gap_count
+        snap["errors"] = win.parser.errors
+        snap["level"] = win.lbl_level.text()
+        snap["conn"] = win.lbl_conn.text()
+        snap["stats"] = win.lbl_samples.text()
+        win.grab().save(shot)
+        app.quit()
+
+    QTimer.singleShot(DURATION_MS, on_done)
+    app.exec()
+
+    print("截图已保存    : %s" % shot)
+    print("顶部状态      : %s" % snap["conn"])
+
+    samples = snap["samples"]
+    points = snap["points"]
+    rows = snap["rows"]
+    gaps = snap["gaps"]
+    frame_gaps = snap["frame_gaps"]
+    errors = snap["errors"]
 
     print("采样点        : %d" % samples)
     print("曲线缓冲点数  : %d" % points)
@@ -102,8 +121,8 @@ def run():
     print("序号缺口      : %d" % gaps)
     print("整帧丢失      : %d" % frame_gaps)
     print("解析错误      : %d" % errors)
-    print("当前级别      : %s" % win.lbl_level.text())
-    print("统计面板采样数: %s" % win.lbl_samples.text())
+    print("当前级别      : %s" % snap["level"])
+    print("统计面板采样数: %s" % snap["stats"])
 
     ok = True
     # 3 秒 100Hz 理论 300 点，留出启动开销余量
@@ -124,6 +143,9 @@ def run():
         ok = False
     if errors != 0:
         print("FAIL: 解析错误 %d" % errors)
+        ok = False
+    if "演示模式" not in snap["conn"]:
+        print("FAIL: 顶部状态应为「演示模式（无硬件）」，实际是 %r" % snap["conn"])
         ok = False
 
     # ---- 第二段：反向验证检测逻辑与清零闭环 ----

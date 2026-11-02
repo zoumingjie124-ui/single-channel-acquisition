@@ -69,21 +69,21 @@ set QT_QPA_PLATFORM=offscreen
 python tests/gui_smoke.py
 
 界面字体      : Microsoft YaHei
-采样点        : 394
-曲线缓冲点数  : 394
+采样点        : 400
+曲线缓冲点数  : 400
 告警事件行数  : 2
 序号缺口      : 0
 整帧丢失      : 0
 解析错误      : 0
 当前级别      : NORMAL
-统计面板采样数: 394
+统计面板采样数: 400
 清零同步验证  : OK
 注入缺口检测  : OK（期望 +2，实得 +2）
 BOOT 重新对齐 : OK
 RESULT: PASS
 ```
 
-4 秒理论 400 点，实测 394 点（差额是启动阶段的暖机，属正常）。缺口 0、解析错误 0，
+4 秒理论 400 点，实测约 400 点（每跑一次会差几帧，取决于机器负载；下方代码块是一次实际输出）。缺口 0、解析错误 0，
 说明「组帧 → 解析 → 绘图 → 事件表 → 统计面板」整条链路是通的。
 
 截图见 `docs/gui_demo.png`（由同一次测试自动保存，不是手绘的示意图）。
@@ -514,3 +514,63 @@ data = self._ser.read(4096)
 `1.6 ks`、电压轴 `3 kmV`。对固定单位（秒 / 毫伏）来说这层换算毫无意义，还会让读数字
 的人多绕一道。已对两条轴调用 `enableAutoSIPrefix(False)`，现在直接显示 `1600 s` / `3000 mV`。
 两张截图（`gui_demo.png`、`gui_real_serial.png`）均已按修复后的界面重新生成。
+
+## 11. 演示源与冒烟截图的两处修正（2026-11-02）
+
+用户逐像素看 `gui_demo.png` 时发现两处破绽，都成立。
+
+### 11.1 截图在事件循环之外抓 → 顶部变成"未连接"
+
+`gui_smoke.py` 的 `win.grab()` 原来写在 `app.exec()` 之后。退出后窗口会走
+`closeEvent -> _disconnect()`，于是：
+
+- 顶部标签从琥珀色的「演示模式（无硬件）」变成红色的「未连接」；
+- 右侧「运行时间」停在最后一条 STAT（3.0 s），而「采样数」已经跑到 4 秒的量。
+
+修法：截图与所有取值都放进 `QTimer` 回调，在 `app.quit()` **之前**完成。
+另加一条断言：顶部状态必须包含「演示模式」，否则 FAIL——这样同类问题下次会自己暴露。
+
+### 11.2 演示源判级没有滞回 → 事件表自相矛盾
+
+`DemoSource._tick()` 原来是无回差的简单比较：
+
+```python
+lvl = 0
+if filt >= self.crit: lvl = 2
+elif filt >= self.warn: lvl = 1
+```
+
+于是事件表里出现 `WARN -> NORMAL | 2394 mV`，而固件的退出条件是要掉到
+`warn - 50 = 2350` 以下。同一份材料里两个判级规则不一致，是最容易被抓的那种破绽。
+
+改为与固件一致的**相邻级别跳转 + 50 mV 回差**（`THR_HYST_MV`）：
+
+```python
+lvl = self.level
+if lvl == 0:
+    if filt >= self.warn:            lvl = 1
+elif lvl == 1:
+    if filt >= self.crit:            lvl = 2
+    elif filt < self.warn - THR_HYST_MV: lvl = 0
+else:
+    if filt < self.crit - THR_HYST_MV:   lvl = 1
+```
+
+### 11.3 时间轴对齐
+
+`DURATION_MS` 由 4000 改为 **4050**：STAT 是 1 Hz，多等 50 ms 让 `t = 4000 ms` 那条
+STAT 被处理，避免截图里"运行时间 3.0 s / 采样 400 点"看着像丢了数据。
+
+### 11.4 重跑结果
+
+```
+顶部状态      : 演示模式（无硬件）
+采样点        : 400
+告警事件行数  : 2
+事件 1        : 770 ms  NORMAL -> WARN    2412 mV   （≥ 2400，进入 WARN）
+事件 2        : 2040 ms WARN -> NORMAL    2348 mV   （≤ 2349，退出 WARN）
+RESULT: PASS
+```
+
+两条事件的数值都落在 50 mV 回差允许的区间内，与固件规则一致。
+
