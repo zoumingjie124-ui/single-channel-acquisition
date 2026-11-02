@@ -59,11 +59,17 @@ def main():
 
     mvs, filts = [], []
     t0 = time.time()
-    print("串口 %s，采集 %.0f 秒……" % (port, SECONDS))
+    print("串口 %s，目标采集 %.1f 秒……" % (port, SECONDS))
     while time.time() - t0 < SECONDS:
-        chunk = ser.read(8192)
-        if not chunk:
+        # 必须按 in_waiting 取，不能 read(8192)：
+        # pyserial 的 read(n) 会一直累积到凑满 n 字节才返回，数据一直在流时
+        # 它就永远不会因为超时返回 —— 115200 下约 1.7 KB/s，凑满 8192 B 要 4.7 s，
+        # 于是"请求 3 秒"实际会跑 4.7 秒、请求 5 秒会跑 9.4 秒（多一个读周期）。
+        n = ser.in_waiting
+        if n == 0:
+            time.sleep(0.005)
             continue
+        chunk = ser.read(n)
         for mtype, mseq, payload in parser.feed(chunk):
             if mtype != P.T_SAMPLE or len(payload) < 4:
                 continue

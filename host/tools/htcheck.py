@@ -123,6 +123,15 @@ def count_err(raw):
     return raw.count(b"ERR unknown command")
 
 
+def first_err_line(raw):
+    """取第一条 ERR 的整行（不含 CRLF），用于检查回显是否被重复拼接。"""
+    i = raw.find(b"ERR unknown command")
+    if i < 0:
+        return b""
+    j = raw.find(b"\r\n", i)
+    return raw[i:j if j > 0 else len(raw)]
+
+
 def main():
     port = sys.argv[1] if len(sys.argv) > 1 else pick_port()
     print("串口: %s @115200" % port)
@@ -144,11 +153,13 @@ def main():
           % (REPEAT, SHORT_LEN, HT_BOUNDARY))
     raw_a = phase(link, SHORT_LEN)
     errs_a = count_err(raw_a)
+    echo_a = first_err_line(raw_a)
     mid = link.stat()
 
     print("阶段 B：%d 条长命令（%d 字符，必然触发 HT）" % (REPEAT, LONG_LEN))
     raw_b = phase(link, LONG_LEN)
     errs_b = count_err(raw_b)
+    echo_b = first_err_line(raw_b)
     end = link.stat()
 
     if mid is None or end is None:
@@ -160,10 +171,19 @@ def main():
     d_frm = end["frm"] - base["frm"]
 
     print("\n===== 结果 =====")
+    # 回显长度 = len("ERR unknown command: ") + 命令长度
+    #   A: 21 + 8  = 29
+    #   B: 21 + 48 = 69
+    # 若 HT 重复交付，同一行会被拼两遍并被 64 字节行缓冲截断 -> B 变成 84 字节
+    exp_a = 21 + SHORT_LEN
+    exp_b = 21 + LONG_LEN
+
     print("短命令 ERR 行 : %d / 应为 %d   (重复交付则为 %d)"
           % (errs_a, REPEAT, REPEAT * 2))
     print("长命令 ERR 行 : %d / 应为 %d   (重复交付则为 %d)"
           % (errs_b, REPEAT, REPEAT * 2))
+    print("短命令回显长度: %d / 应为 %d" % (len(echo_a), exp_a))
+    print("长命令回显长度: %d / 应为 %d   (重复交付会被拼成 84 并截断)" % (len(echo_b), exp_b))
     print("uart_err 增量 : %+d" % d_uart)
     print("rxf     增量 : %+d   (每出现一次 rearm BUSY 会 +1)" % d_rxf)
     print("frm     增量 : %+d" % d_frm)
@@ -185,6 +205,13 @@ def main():
         ok = False
     if (mid["uart"], mid["rxf"]) != (base["uart"], base["rxf"]):
         print("FAIL: 阶段 A（短命令）就已经污染计数")
+        ok = False
+    if len(echo_a) != exp_a:
+        print("FAIL: 短命令回显长度不符（%d，应为 %d）" % (len(echo_a), exp_a))
+        ok = False
+    if len(echo_b) != exp_b:
+        print("FAIL: 长命令回显长度不符（%d，应为 %d）——命令被重复拼接了"
+              % (len(echo_b), exp_b))
         ok = False
 
     print("\nRESULT:", "PASS" if ok else "FAIL")
