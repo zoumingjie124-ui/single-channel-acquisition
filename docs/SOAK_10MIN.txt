@@ -1,0 +1,26 @@
+port=COM5  duration=10 min  开始 10:22:07
+[   61s] 本分钟采样 6575   累计 6575    | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  122s] 本分钟采样 6107   累计 12682   | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  183s] 本分钟采样 6101   累计 18783   | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  244s] 本分钟采样 6107   累计 24890   | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  301s] 本分钟采样 5635   累计 30525   | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  362s] 本分钟采样 6106   累计 36631   | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  423s] 本分钟采样 6107   累计 42738   | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  484s] 本分钟采样 6106   累计 48844   | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  540s] 本分钟采样 5638   累计 54482   | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+
+===== 合计（601.1 秒）=====
+收到字节      : 1048576
+SAMPLE 帧     : 60117  (实测 100.01 Hz)
+drops         : 0   (设备端采样环溢出，0 才算不丢点)
+frame_err     : 0   (CRC/格式错误)
+adc_err       : 0
+uart_err      : 0
+rx_err        : 0
+状态切换      : 36
+设备运行时间  : 1825000 ms
+seq8 缺口     : 0   (样本级，设备到上位机的样本缺失)
+整帧丢失      : 0   (帧头 SEQ 跳变，整帧未到)
+解析错误      : 0
+BOOT 帧       : 0   (0 表示中途没有复位)
+链路中断次数  : 0
