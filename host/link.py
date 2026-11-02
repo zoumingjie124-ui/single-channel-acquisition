@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import queue
+import time
 from typing import List, Optional
 
 import serial
@@ -69,8 +70,16 @@ class SerialWorker(QThread):
                 break
 
             # 2) 接收
+            #    必须按 in_waiting 取，不能 read(4096)：
+            #    pyserial 的 read(n) 会一直累积到凑满 n 字节才返回，只要数据不断流
+            #    就永远不会因超时返回。链路上约 1.7 KB/s，凑满 4096 B 要 2.3 s，
+            #    结果就是界面 2 秒级卡顿 + 一次性涌入（实测 6 s 只处理到 468 点）。
             try:
-                data = self._ser.read(4096)
+                n = self._ser.in_waiting
+                if n == 0:
+                    time.sleep(0.005)
+                    continue
+                data = self._ser.read(n)
             except Exception as exc:                  # noqa: BLE001
                 self.disconnected.emit("串口读取失败：%s" % exc)
                 break

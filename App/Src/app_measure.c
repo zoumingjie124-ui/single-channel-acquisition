@@ -144,6 +144,10 @@ uint8_t app_measure_poll_recovery(void)
   s_try_started = 1u;
   s_last_try_ms = now;
 
+  /* 注意：这里**不重置采样环形缓冲**（不清 s_head / s_tail）。
+     故障期间没被主循环取走的样本仍是有效数据，DMA 重启后会接在它们后面，
+     上位机按 seq8 会看到连续序号；若在此 clear，序号会跳变，
+     一次 ADC 故障就会被误记成"丢了一批样本"，统计从此失真。 */
   /* 先清标志，再启动，顺序不能反：
      app_measure_start() 成功的那一刻 DMA/ADC 中断就重新使能了。若硬件故障仍在，
      ISR 会立刻把 s_recover_req 置 1；如果清除放在 start 之后，就会把这个"刚刚

@@ -78,7 +78,15 @@ def main():
             break
 
         try:
-            chunk = ser.read(8192)
+            # 按 in_waiting 取：read(n) 会累积到凑满 n 字节才返回，数据不断流时
+            # 永不超时，115200 下凑满 8192 B 要 4.7 s —— 这正是 SOAK_10MIN 里
+            # 每分钟采样数在 6107 / 5635 之间跳动的根因（打点被推迟了一个读周期）。
+            n_avail = ser.in_waiting
+            if n_avail == 0:
+                time.sleep(0.005)
+                chunk = b""
+            else:
+                chunk = ser.read(n_avail)
         except (serial.SerialException, OSError) as exc:
             # 端口被抢 / 设备重枚举：记录后重连，不中断整轮测试
             reconnects += 1
@@ -130,7 +138,7 @@ def main():
                     for o in P.decode_many([(mtype, mseq, payload)]):
                         if isinstance(o, P.Stat):
                             stat = o
-                else:
+                elif mtype == P.T_EVENT:
                     n_event += 1
 
         if elapsed >= next_mark:
