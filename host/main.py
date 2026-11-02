@@ -14,13 +14,14 @@ import csv
 import math
 import os
 import random
+import struct
 import sys
 from collections import deque
 from datetime import datetime
 
 import pyqtgraph as pg
 from PySide6.QtCore import QObject, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QFontDatabase
+from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -43,27 +44,32 @@ from PySide6.QtWidgets import (
 )
 
 from protocol import (
-    Ack,
-    Boot,
-    Event,
-    FrameParser,
-    LEVEL_NAMES,
-    Sample,
-    Stat,
     ADC_VREF_MV,
+    LEVEL_NAMES,
     THR_HYST_MV,
     T_ACK,
     T_BOOT,
     T_EVENT,
+    T_GET_STAT,
+    T_RESET,
     T_SAMPLE,
+    T_SET_LED,
+    T_SET_THR,
     T_STAT,
     TYPE_NAMES,
+    Ack,
+    Boot,
+    Event,
+    FrameParser,
+    Sample,
+    Stat,
     build_get_stat,
     build_reset,
     build_set_led,
     build_set_thr,
     decode_many,
     encode,
+    validate_thresholds,
 )
 
 PLOT_POINTS = 1500          # 曲线保留的点数（100Hz 下约 15 秒）
@@ -85,6 +91,9 @@ class DemoSource(QObject):
         self._on_bytes = on_bytes
         self._t = 0
         self._seq = 0
+        self._sample_seq = 0
+        self.samples = 0
+        self._changes = 0
         self._phase = 0.0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -117,41 +126,41 @@ class DemoSource(QObject):
         filt = int(0.85 * getattr(self, "_last_filt", raw) + 0.15 * raw)
         self._last_filt = filt
 
+        self.samples += 1
+        self._sample_seq += 1
+
         lvl = 0
         if filt >= self.crit:
             lvl = 2
         elif filt >= self.warn:
             lvl = 1
         if lvl != self.level:
-            ev = encode(0x82, self.next_frame_seq(), self._pack_event(self._t, self.level, lvl, filt))
+            ev = encode(T_EVENT, self.next_frame_seq(), self._pack_event(self._t, self.level, lvl, filt))
             self.level = lvl
-            self._changes = getattr(self, "_changes", 0) + 1
+            self._changes += 1
             self._on_bytes(ev)
 
-        payload = self._pack_sample(self._t, raw, filt, lvl, self._t // 10)
-        self._on_bytes(encode(0x81, self.next_frame_seq(), payload))
+        payload = self._pack_sample(self._t, raw, filt, lvl, self._sample_seq)
+        self._on_bytes(encode(T_SAMPLE, self.next_frame_seq(), payload))
 
         self._stat_acc += 1
         if self._stat_acc >= 100:
             self._stat_acc = 0
-            self._on_bytes(encode(0x83, self.next_frame_seq(), self._pack_stat()))
+            self._on_bytes(encode(T_STAT, self.next_frame_seq(), self._pack_stat()))
 
     @staticmethod
     def _pack_sample(t, raw, filt, lvl, seq8):
-        import struct
         return struct.pack("<IHHBB", t, raw, filt, lvl, seq8 & 0xFF)
 
     @staticmethod
     def _pack_event(t, frm, to, filt):
-        import struct
         return struct.pack("<IBBH", t, frm, to, filt)
 
     def _pack_stat(self):
-        import struct
         return struct.pack(
             "<IIIIIIIIHHB",
-            self._t, self._t // 10, 0, 0, 0, 0, 0,
-            getattr(self, "_changes", 0),
+            self._t, self.samples, 0, 0, 0, 0, 0,
+            self._changes,
             self.warn, self.crit, self.level,
         )
 
@@ -322,7 +331,7 @@ class MainWindow(QMainWindow):
         self.btn_stat = QPushButton("读取统计")
         self.btn_stat.clicked.connect(lambda: self._send(build_get_stat(self._next_seq())))
         self.btn_reset = QPushButton("清零")
-        self.btn_reset.clicked.connect(lambda: self._send(build_reset(self._next_seq())))
+        self.btn_reset.clicked.connect(self._reset_stats)
         row.addWidget(self.btn_stat)
         row.addWidget(self.btn_reset)
         lay.addLayout(row)
@@ -430,18 +439,41 @@ class MainWindow(QMainWindow):
             self._log("未连接，命令未发送")
 
     def _handle_demo_cmd(self, data: bytes):
-        # 演示模式下模拟设备应答，让按钮也有反馈
+        # 演示模式下模拟设备应答，与固件 app_cmd.c + app_task.c 的行为完全一致
         frames = self.cmd_parser.feed(data)
         for msg_type, _seq, payload in frames:
-            if msg_type == 0x10 and len(payload) == 4:
-                import struct
-                w, c = struct.unpack("<HH", payload)
-                self.demo_src.warn, self.demo_src.crit = w, c
-                self.line_warn.setValue(w)
-                self.line_crit.setValue(c)
-                # ACK 的帧头 SEQ 走演示源的帧计数，保持逐帧 +1 的连续性（与固件一致）
+            if msg_type == T_SET_THR:
+                if len(payload) == 4:
+                    w, c = struct.unpack("<HH", payload)
+                    if validate_thresholds(w, c):
+                        self.demo_src.warn, self.demo_src.crit = w, c
+                        self.line_warn.setValue(w)
+                        self.line_crit.setValue(c)
+                        self._on_frames(self.parser.feed(
+                            encode(T_STAT, self.demo_src.next_frame_seq(), self.demo_src._pack_stat())))
+                        res = 0
+                    else:
+                        res = 1
+                else:
+                    res = 1
                 self._on_frames(self.parser.feed(
-                    encode(T_ACK, self.demo_src.next_frame_seq(), bytes([0x10, 0]))))
+                    encode(T_ACK, self.demo_src.next_frame_seq(), bytes([T_SET_THR, res]))))
+            elif msg_type == T_SET_LED:
+                res = 0 if len(payload) == 1 else 1
+                self._on_frames(self.parser.feed(
+                    encode(T_ACK, self.demo_src.next_frame_seq(), bytes([T_SET_LED, res]))))
+            elif msg_type == T_GET_STAT:
+                self._on_frames(self.parser.feed(
+                    encode(T_STAT, self.demo_src.next_frame_seq(), self.demo_src._pack_stat())))
+                self._on_frames(self.parser.feed(
+                    encode(T_ACK, self.demo_src.next_frame_seq(), bytes([T_GET_STAT, 0]))))
+            elif msg_type == T_RESET:
+                self.demo_src.samples = 0
+                self.demo_src._changes = 0
+                self._on_frames(self.parser.feed(
+                    encode(T_STAT, self.demo_src.next_frame_seq(), self.demo_src._pack_stat())))
+                self._on_frames(self.parser.feed(
+                    encode(T_ACK, self.demo_src.next_frame_seq(), bytes([T_RESET, 0]))))
 
     def _on_frames(self, frames):
         # 帧头 SEQ 缺口检测：设备所有帧（含 ACK/STAT/EVENT）共用一个逐帧 +1
@@ -537,10 +569,24 @@ class MainWindow(QMainWindow):
             self._log(line)
 
     # ------------------------------ 交互 ------------------------------
+    def _reset_stats(self):
+        # 同步清零上位机侧累计计数，避免下一帧 SAMPLE 把“采样数”刷回旧累计值；
+        # 注意 expected_seq / expected_frame_seq 保持不变，以便继续校验连续性
+        self.samples = 0
+        self.gap_count = 0
+        self.frame_gap_count = 0
+        self.lbl_samples.setText("0")
+        self.lbl_drops.setText("0")
+        self.lbl_errs.setText("0 / 0 / 0")
+        self.lbl_changes.setText("0")
+        self.lbl_gaps.setText("0")
+        self.lbl_frame_gaps.setText("0")
+        self._send(build_reset(self._next_seq()))
+
     def _apply_thr(self):
         w = self.sp_warn.value()
         c = self.sp_crit.value()
-        if w <= THR_HYST_MV or c < (w + THR_HYST_MV) or c > ADC_VREF_MV:
+        if not validate_thresholds(w, c):
             QMessageBox.warning(self, "参数不合法",
                                 "需满足 %d < WARN 且 WARN + %d <= CRIT <= %d（与固件校验一致）"
                                 % (THR_HYST_MV, THR_HYST_MV, ADC_VREF_MV))

@@ -187,7 +187,18 @@ def parse_boot(p: bytes) -> Boot:
     return Boot(ver, rate, buf, depth, decim)
 
 
-# ------------------------------ 命令构造 ------------------------------
+# ------------------------------ 命令构造与校验 ------------------------------
+def validate_thresholds(warn_mv: int, crit_mv: int) -> bool:
+    """阈值合法性校验，与固件 app_alarm_set_thresholds() 完全一致。"""
+    if warn_mv <= THR_HYST_MV:
+        return False
+    if crit_mv < (warn_mv + THR_HYST_MV):
+        return False
+    if crit_mv > ADC_VREF_MV:
+        return False
+    return True
+
+
 def build_set_thr(warn_mv: int, crit_mv: int, seq: int) -> bytes:
     return encode(T_SET_THR, seq, struct.pack("<HH", warn_mv, crit_mv))
 

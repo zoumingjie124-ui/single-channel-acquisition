@@ -25,6 +25,7 @@ FW_DIR = os.path.normpath(os.path.join(HERE, "..", "App"))
 PROTO_H = os.path.join(FW_DIR, "Inc", "app_proto.h")
 CONFIG_H = os.path.join(FW_DIR, "Inc", "app_config.h")
 TASK_C = os.path.join(FW_DIR, "Src", "app_task.c")
+ALARM_C = os.path.join(FW_DIR, "Src", "app_alarm.c")
 
 
 def parse_defines(path):
@@ -81,6 +82,14 @@ class TestFirmwareSync(unittest.TestCase):
         self.assertEqual(self.fw["PROTO_LEN_STAT"], 37)
         self.assertEqual(self.fw["PROTO_LEN_ACK"], 2)
         self.assertEqual(self.fw["PROTO_LEN_BOOT"], 7)
+
+    def test_threshold_overflow_guard_in_c(self):
+        """检查 app_alarm_set_thresholds 未对 (warn_mv + APP_THR_HYST_MV) 做 uint16_t 截断"""
+        with open(ALARM_C, encoding="utf-8") as f:
+            alarm_src = f.read()
+        self.assertNotIn("(uint16_t)(warn_mv + APP_THR_HYST_MV)", alarm_src,
+                         "warn_mv + APP_THR_HYST_MV 转 uint16_t 会在 warn_mv >= 65486 时发生回绕")
+        self.assertIn("((uint32_t)warn_mv + APP_THR_HYST_MV)", alarm_src)
 
 
 @unittest.skipUnless(os.path.exists(TASK_C), "找不到 app_task.c，跳过")

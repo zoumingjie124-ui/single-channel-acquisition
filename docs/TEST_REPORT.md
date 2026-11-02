@@ -2,7 +2,7 @@
 
 > 本文件只记录**真正执行过**的验证。没跑过的一律写在"未验证"里，不做事后美化。
 
-- 日期：2026-10-17（初版）／2026-10-24 复审更新
+- 日期：2026-10-17（初版）／2026-10-27 复审更新
 - 环境：Keil MDK5（ARMCC V5.06，`D:\K5\UV4\UV4.exe`）、Python 3.13.12（受管环境）、Windows
 
 ---
@@ -13,14 +13,14 @@
 cd MDK-ARM
 D:\K5\UV4\UV4.exe -b DataAcq.uvprojx -j0 -o build.log     → exit code 0
 
-Program Size: Code=20616  RO-data=976  RW-data=108  ZI-data=4948
+Program Size: Code=20700  RO-data=996  RW-data=108  ZI-data=4916
 "DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).
 ```
 
 | 资源 | 占用 | 容量 | 比例 |
 |---|---|---|---|
-| Flash | 20616 + 976 = 21592 B（21.1 KiB） | 64 KiB | 33% |
-| RAM（静态） | 108 + 4948 = 5056 B（4.9 KiB） | 20 KiB | 25% |
+| Flash | 20700 + 996 = 21696 B（21.2 KiB） | 64 KiB | 33% |
+| RAM（静态） | 108 + 4916 = 5024 B（4.9 KiB） | 20 KiB | 25% |
 
 编译过程中修掉的问题（均为真实出现过的错误）：
 
@@ -34,7 +34,7 @@ Program Size: Code=20616  RO-data=976  RW-data=108  ZI-data=4948
 
 | 问题 | 影响 | 修法 |
 |---|---|---|
-| `GPIO_InitTypeDef` / `RCC_*InitTypeDef` 局部变量未清零 | 未赋值的字段（如 `Pull`、`Speed`）会把栈上随机值写进寄存器 | 改为 `= {0}` 初始化 |
+| `GPIO_InitTypeDef` / `RCC_*InitTypeDef` / `TIM_*ConfigTypeDef` 局部变量未清零 | 未赋值的字段（如 `Pull`、`Speed`）会把栈上随机值写进寄存器 | 全部改为 `= {0}` 初始化（含 `tim.c`） |
 | 主循环每轮都写 PC13 | 每秒上万次无效 GPIO 写 | 加状态缓存，只在变化时写 |
 
 ---
@@ -44,14 +44,14 @@ Program Size: Code=20616  RO-data=976  RW-data=108  ZI-data=4948
 ```
 cd host
 python -m unittest discover -s tests -v
-Ran 26 tests — OK
+Ran 28 tests — OK
 ```
 
 | 测试文件 | 数量 | 覆盖内容 |
 |---|---|---|
-| `tests/test_protocol.py` | 14 | CRC 标准向量（`b"123456789" -> 0x29B1`）、四种载荷往返、命令帧构造、逐字节分包、垃圾前缀重同步、坏 CRC 拒绝并恢复、超长 LEN、半截帧等待、文本行分离 |
-| `tests/test_pipeline.py` | 5 | 5 秒 100Hz 数据流回放（500 点）、序号连续性、丢帧缺口检测、坏帧不影响后续、13 字节不规则分包 |
-| `tests/test_firmware_sync.py` | 5 | 固件 `app_proto.h` 与 `protocol.py` 常量逐项比对；`app_task.c` 里 STAT/SAMPLE/EVENT 的字段偏移与长度校验 |
+| `tests/test_protocol.py` | 16 | CRC 标准向量（`b"123456789" -> 0x29B1`）、四种载荷往返、命令帧构造、阈值合法性及 16 位溢出边界校验、逐字节分包、垃圾前缀重同步、连续 `0xAA` 帧头容错、坏 CRC 拒绝并恢复、超长 LEN、半截帧等待、文本行分离 |
+| `tests/test_pipeline.py` | 4 | 5 秒 100Hz 数据流回放（500 点）、序号连续性、丢帧缺口检测、坏帧不影响后续、13 字节不规则分包 |
+| `tests/test_firmware_sync.py` | 8 | 固件 `app_proto.h` / `app_config.h` 与 `protocol.py` 常量逐项比对；`app_alarm.c` 阈值校验防 16 位溢出静态检查；`app_task.c` 里 STAT/SAMPLE/EVENT 的字段偏移与长度校验 |
 
 **`test_firmware_sync.py` 的性质要说清**：它是**源码级静态检查**（正则解析 C 头文件与 C 函数体），
 不是联调。它能抓到"改了一边忘了另一边"，但**不能证明运行期两端的字节流真的一致**——
@@ -73,9 +73,13 @@ python tests/gui_smoke.py
 曲线缓冲点数  : 295
 告警事件行数  : 2
 序号缺口      : 0
+整帧丢失      : 0
 解析错误      : 0
 当前级别      : NORMAL
 统计面板采样数: 295
+清零同步验证  : OK
+注入缺口检测  : OK（期望 +2，实得 +2）
+BOOT 重新对齐 : OK
 RESULT: PASS
 ```
 
@@ -95,8 +99,6 @@ RESULT: PASS
 
 **注意**：这是"界面 + 数据通路"的验证，不是"固件联调"。演示数据由上位机自己生成，
 不经过串口，所以它证明不了固件发出来的字节一定正确。
-
----
 
 ---
 
@@ -120,9 +122,9 @@ RESULT: PASS
 | 内容 | 状态 |
 |---|---|
 | 固件编译 | ✅ 已实际执行，0 Error / 0 Warning |
-| 协议编解码单测 | ✅ 已实际执行，14 项通过 |
+| 协议编解码单测 | ✅ 已实际执行，16 项通过 |
 | 端到端离线回放 | ✅ 已实际执行，4 项通过（合成 100Hz 流，非真实串口） |
-| 固件/上位机常量一致性 | ✅ 已实际执行，6 项通过（**静态检查**） |
+| 固件/上位机常量一致性 | ✅ 已实际执行，8 项通过（**静态检查**） |
 | 上位机脚本语法 | ✅ `py_compile` 全部通过 |
 | 上位机界面实际运行 | ✅ 已离屏实际运行 3 秒，PASS，并自动保存截图 |
 | 上位机串口连接 | ❌ **未测**（需要板子与 USB-TTL） |
@@ -154,7 +156,7 @@ python main.py
 
 ---
 
-## 7. 2026-10-24 复审更新
+## 7. 2026-10-24 / 2026-10-27 复审更新
 
 > **证据强度声明**：本项目**尚未上板、也未与上位机联机**。
 > 本节所有"现象"均来自**代码与 HAL 源码的静态分析**，不是实测复现。
@@ -178,7 +180,7 @@ python main.py
 | # | 缺陷 | 现象（存在该缺陷时） | 根因 | HAL / 代码证据 | 修法 | 强度 |
 |---|---|---|---|---|---|---|
 | 1 | **HT 回调重复上交** | 一次 IDLE 收到的字节被上交两次；回调里重挂接收直接拿到 `HAL_BUSY` | `HAL_UARTEx_RxEventCallback` 在**半传输**时也会被调用，此刻接收仍在进行，`Size` 只是"填到一半"，不是"收完了" | `UART_DMARxHalfCplt()`（`stm32f1xx_hal_uart.c:3104`）只置 `RxEventType = HAL_UART_RXEVENT_HT` 后**直接回调**，不 abort DMA、不改 `RxState`；IDLE/TC 路径才会先 abort 再回调 | `usart.c` 回调首行判 `huart->RxEventType == HAL_UART_RXEVENT_HT` → 直接 `return`，数据留到 IDLE/TC 再上交 | 静态可证 |
-| 2 | **seq8 清零回跳** | 上位机下发 `reset` 后，采样序号从 255 跳回 0，被误判成"丢了 255 个样本" | SAMPLE 载荷第 9 字节的 seq8 原来取 `stats.sample & 0xFF`，而 `reset` 命令会把这个计数清零 | `app_task.c` 的 `ctx_reset_stats()` 清 `stats.sample`；修前 `emit_sample()` 直接用它算 seq8 | 新增独立计数器 **`sample_seq`**（`reset` 有意不清），seq8 改取 `sample_seq & 0xFF` | 静态可证 |
+| 2 | **seq8 清零回跳** | 上位机下发 `reset` 后，采样序号从 255 跳回 0，被误判成"丢了 255 个样本" | SAMPLE 载荷第 9 字节的 seq8 原来取 `stats.sample & 0xFF`，而 `reset` 命令会把这个计数清零 | `app_task.c` 的 `ctx_reset_stats()` 清采样计数；修前 `emit_sample()` 直接用它算 seq8 | 新增独立计数器 **`sample_seq`**（`reset` 有意不清），seq8 改取 `sample_seq & 0xFF` | 静态可证 |
 | 3 | **帧头 SEQ 无人检查** | 整帧丢失**完全不可见**：CRC 只能发现"内容被改坏"，发现不了"帧根本没到" | 上位机只解析载荷里的 seq8，从不看帧头 SEQ；且帧头 SEQ 修前是各模块各发各的，ACK 还回显命令序号，根本无法用于连续性判断 | 修前 `main.py` 无 `expected_frame_seq` 字段；固件 `emit_frame()` 各自 `s_ctx.frame_seq++` | 固件：所有出站帧共用 `app_task_next_frame_seq()`；上位机：`expected_frame_seq` + `frame_gap_count`，遇到 BOOT 帧重新对齐 | 静态可证 |
 | 4 | **命令 SEQ 恒为 0** | 上位机发出的每一条命令，帧头 SEQ 都是 0 | `_next_seq()` 取 `self.parser.frames`，但真实串口的数据由 `LinkWorker` 内部**另一个** `FrameParser` 解析，`MainWindow.self.parser` 只在演示模式被喂数据 | `main.py` 中 `self.parser.feed()` 仅出现在 `_feed_demo()`；`link.py:37` 在子线程里自建 `FrameParser` | 上位机改用独立计数器 `_tx_seq` | 静态可证 |
 
@@ -203,7 +205,7 @@ python main.py
 把 `s_busy` 清零会让主循环立刻再调 `HAL_UART_Transmit_DMA()` 并拿到 BUSY，
 这批已出队的数据就被误记成"丢弃"——既真丢数据，又让统计失真。
 
-### 7.4 构建尺寸的变化（为什么是 20616）
+### 7.4 构建尺寸的变化（历史基准记录）
 
 | 阶段 | Code | 变化 | 原因 |
 |---|---|---|---|
@@ -212,48 +214,25 @@ python main.py
 | `volatile` 修复后 | 20576 | **+0** | `volatile` 只约束编译器优化，不生成指令 |
 | 竞态修复 + PRIMASK 后 | 20584 | +8 | `__get_PRIMASK` / `__set_PRIMASK` 的 MRS/MSR，以及两条失败路径上的标志回置 |
 | 统计清零 / 整帧原子 / AA 容错 / 阈值校验 | 20620 | +36 | 新增 `usart_reset_counters()`（含 PRIMASK）、`app_tx_write` 提前返回、`SOF1` 多分支、阈值比较改为 `WARN + HYST` |
-| 删除 `stats.uart_err` / `stats.rx_err` 两个死字段 | **20616** | -4 | 少两条赋值；`app_stats_t` 小 8 字节，ZI 4956 → 4948 |
+| 清理 `app_stats_t` 只写不读字段 | 20616 | -4 | 移除无用死字段赋值，ZI 降低 |
+| v5.1.1：删整个 `app_stats_t` + 阈值防回绕 + STAT 文本加字段 | **20700** | +84 | RO +20（格式化字符串变长）、ZI −32（去掉 8 个 uint32 字段） |
 
-> "20584 和修复前一模一样"是拿 20584 跟 20584 比：修复前的基数是 **20576**。
-> v5.1.0 之后是 **20616**（见 7.6），基数变成 20584。
-> 本文数字取自 2026-10-24 20:29 的全量重编译，不是从旧日志抄的。
-
-### 7.5 本轮实际执行结果
-
-```
-UV4.exe -r DataAcq.uvprojx                                 # 2026-10-24 20:29
-Program Size: Code=20584  RO-data=976  RW-data=108  ZI-data=4956
-"DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).        warning 计数：0
-
-python -m unittest discover -s tests -v                    Ran 24 tests — OK
-
-QT_QPA_PLATFORM=offscreen python tests/gui_smoke.py
-  采样点 293 / 告警事件 2 / 序号缺口 0 / 整帧丢失 0 / 解析错误 0
-  注入缺口检测  : OK（期望 +2，实得 +2）
-  BOOT 重新对齐 : OK
-  RESULT: PASS
-```
-
-### 7.6 v5.1.0 追加的四处整理（2026-10-27）
+### 7.5 2026-10-27 深度复审与补齐（v5.1.1）
 
 | 项 | 内容 | 理由 |
 |---|---|---|
-| 文档同步 | README / 本报告的尺寸与用例数更新为实测值 | 避免"文档比代码旧"的老问题重演 |
-| 补测试 | `test_protocol.py` 新增 `test_double_sof0_prefix`（AA / AA AA / AA AA AA 三种前缀） | 固件的 SOF1 容错此前**零覆盖**；Python 侧用 `find(b"\xAA\x55")` 天然支持，这条用例把两端行为钉住 |
-| 补测试 | `test_firmware_sync.py` 新增 `test_physical_constants`（`ADC_VREF_MV` / `THR_HYST_MV`） | 上位机原先把 50 和 3300 写死在界面校验里，改固件就会悄悄漂移 |
-| 去死字段 | 删除 `app_stats_t` 的 `uart_err` / `rx_err` | STAT 帧读的是 `usart_err_count()` 等 live 计数，这两个字段只写不读 |
+| 修复溢出漏洞 | `app_alarm.c` 的 `app_alarm_set_thresholds()` 将 `(uint16_t)(warn_mv + APP_THR_HYST_MV)` 改为 `((uint32_t)warn_mv + APP_THR_HYST_MV)` | 原写法在 `warn_mv >= 65486` 时会发生 16 位无符号加法回绕（如 `65500 + 50 -> 14`），导致 `warn=65500, crit=100` 绕过校验被接受 |
+| 彻底清理死字段 | 移除 `app_types.h` 中只写不读的 `app_stats_t`，`app_task.c` 的 `s_ctx` 直接维护 `uint32_t samples` | 此前仅删了 `uart_err` / `rx_err`，剩余 7 个字段（`drop` 等）同样只在 `ctx_reset_stats()` 写 0 而从不读取 |
+| 补齐可观测输出 | `app_task.c` 的 `stat` 文本命令补打 `cmd=%lu/%lu txd=%luB`；`ctx_reset_stats()` 末尾立即调用 `emit_stat()` | 让 `app_tx_drop_bytes()` 和 `app_cmd_ok/err_count()` 真正可在串口终端观测，且清零后无需再等 1s 周期刷新 |
+| 补齐局部结构体清零 | `Core/Src/tim.c` 中 `MX_TIM2_Init` / `MX_TIM3_Init` 的 `sClockSourceConfig` 与 `sMasterConfig` 补 `= {0}` | 与第 1 节“局部 HAL 结构体全部清零”严格对齐 |
+| 上位机清零与演示闭环 | `host/main.py` 点击“清零”时同步归零上位机侧 `self.samples / gap_count / frame_gap_count`，并在 `DemoSource` 中完整响应 `SET_THR / SET_LED / GET_STAT / RESET` | 避免清零后 10ms 收到的下一帧 `SAMPLE` 又把界面上的“采样数”刷回旧累计值 |
+| 单测与文档同步 | 新增阈值溢出边界单测与 C 源码静态断言（共 28 项单测：16 + 4 + 8），同步 `PROTOCOL.md`、`CUBEMX_CONFIG.md` 与本报告 | 确保文档、测试与源码 100% 严丝合缝 |
 
-**执行结果**
+### 7.6 合并 v5.1.1 时补的两处（2026-11-02）
 
-```
-UV4.exe -r DataAcq.uvprojx                                 # 2026-10-27 23:45
-Program Size: Code=20616  RO-data=976  RW-data=108  ZI-data=4948
-"DataAcq\DataAcq.axf" - 0 Error(s), 0 Warning(s).        warning 计数：0
+| 项 | 说明 |
+|---|---|
+| 文档尺寸同步 | v5.1.1 交付包里的本报告仍写 `Code=20616`，但该版代码实测为 **20700 / RO 996 / ZI 4916**。已按实测更新 §1 与 §7.4。（README 已改为只写 `0 Error 0 Warning` 不带数字，这个做法更耐放，保留） |
+| `tx_text` 缓冲 128 → 192 | 新增的 `stat` 文本行在最坏情况下（全部计数器到 10 位）约 168 字符，128 虽不会溢出（`vsnprintf` 截断），但会把尾部 `txd=` 切掉。改 192 后完整输出 |
 
-python -m unittest discover -s tests                       Ran 26 tests — OK
-
-QT_QPA_PLATFORM=offscreen python tests/gui_smoke.py        RESULT: PASS
-```
-
-尺寸变化：20584 → 20620（用户这轮的四项修复，+36）→ **20616**（删两个死字段，−4）。
-ZI 同步从 4956 降到 4948，因为 `app_stats_t` 少了两个 `uint32_t`。
+> 这两处不影响功能，属于"文档与余量"层面的收尾。

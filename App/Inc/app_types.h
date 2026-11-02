@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file    app_types.h
-  * @brief   跨模块共享的类型定义：告警级别、运行统计。
+  * @brief   跨模块共享的类型定义：告警级别。
   *
   * 为什么单独一个文件：
   *   app_alarm / app_task / app_cmd / app_proto 都要用到 app_level_t，
@@ -20,27 +20,5 @@ typedef enum
   APP_LEVEL_WARN   = 1,
   APP_LEVEL_CRIT   = 2
 } app_level_t;
-
-/**
-  * @brief 运行统计。所有字段都是"单调递增的计数"，reset 时整体清零。
-  *
-  * 命名约定（上位机按此显示）：
-  *   sample  : 成功进入流水线的采样点数
-  *   drop    : 采样环形缓冲溢出而丢弃的点数（可观测的丢点）
-  *   adc_err : ADC / DMA 传输错误次数
-  *   frame_err: 收到的帧 CRC 或格式错误次数
-  *   tx_drop : 发送环形缓冲满而丢弃的字节数
-  */
-typedef struct
-{
-  uint32_t sample;
-  uint32_t drop;
-  uint32_t adc_err;
-  uint32_t frame_err;
-  uint32_t cmd_ok;
-  uint32_t cmd_err;
-  uint32_t tx_drop;
-  uint32_t changes;
-} app_stats_t;
 
 #endif /* __APP_TYPES_H */

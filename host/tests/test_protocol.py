@@ -10,6 +10,7 @@
     4. 垃圾字节、损坏 CRC、超长 LEN 都能重新同步而不是卡死
     5. 文本行（设备 help/stat 应答）不会被误当成帧
     6. 长度与固件的 struct 定义严格一致
+    7. 阈值合法性校验（含 16 位无符号加法溢出边界）
 """
 
 import os
@@ -102,6 +103,17 @@ class TestEncodeParse(unittest.TestCase):
             frames = parser.feed(frame)
             self.assertEqual(len(frames), 1, "构造的命令帧无法被解析回来")
             self.assertEqual(parser.errors, 0)
+
+    def test_validate_thresholds_and_overflow_guard(self):
+        self.assertTrue(P.validate_thresholds(2400, 3000))
+        self.assertTrue(P.validate_thresholds(51, 101))
+        self.assertTrue(P.validate_thresholds(3250, 3300))
+        # 下界与间隔校验
+        self.assertFalse(P.validate_thresholds(50, 100))
+        self.assertFalse(P.validate_thresholds(2400, 2449))
+        self.assertFalse(P.validate_thresholds(2400, 3301))
+        # 16 位无符号加法溢出边界（65500 + 50 在 uint16 下会回绕成 14）
+        self.assertFalse(P.validate_thresholds(65500, 100))
 
 
 class TestParserRobustness(unittest.TestCase):

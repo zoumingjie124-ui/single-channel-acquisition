@@ -41,11 +41,11 @@ typedef struct
   uint32_t  stat_last_ms;
   uint8_t   frame_seq;
   uint32_t  sample_seq;   /* 采样连续序号：清零命令不清它，否则上位机会把清零误判成序号缺口 */
+  uint32_t  samples;      /* 已处理采样点数（reset 命令会清零） */
   app_level_t last_level;
 
   app_filter_t filter;
   app_alarm_t  alarm;
-  app_stats_t  stats;
 
   uint8_t   led_forced;      /* 1 = 被 led 命令接管 */
   uint8_t   led_forced_on;
@@ -60,7 +60,8 @@ static void led_write(uint8_t on);
 /* ---------------------------- 发送辅助 ---------------------------- */
 static void tx_text(const char *fmt, ...)
 {
-  char buf[96];
+  /* 192：最坏情况下 stat 行长约 168 字符（计数器全部到 10 位），128 会截断尾巴 */
+  char buf[192];
   va_list ap;
   int n;
 
@@ -131,7 +132,7 @@ static void emit_stat(void)
   uint8_t p[PROTO_LEN_STAT];
 
   proto_put_u32(&p[0],  s_ctx.tick_ms);
-  proto_put_u32(&p[4],  s_ctx.stats.sample);
+  proto_put_u32(&p[4],  s_ctx.samples);
   proto_put_u32(&p[8],  app_measure_drop_count());
   proto_put_u32(&p[12], app_measure_err_count());
   proto_put_u32(&p[16], usart_err_count());
@@ -170,20 +171,15 @@ static void ctx_get_stat(void)
 static void ctx_reset_stats(void)
 {
   /* sample_seq 有意不清：上位机靠它的连续性查缺口，清零命令不能打断 */
-  s_ctx.stats.sample  = 0u;
-  s_ctx.stats.drop    = 0u;
-  s_ctx.stats.adc_err = 0u;
-  s_ctx.stats.frame_err = 0u;
-  s_ctx.stats.cmd_ok  = 0u;
-  s_ctx.stats.cmd_err = 0u;
-  s_ctx.stats.tx_drop = 0u;
-  s_ctx.stats.changes = 0u;
+  s_ctx.samples = 0u;
 
   s_ctx.alarm.change_count = 0u;
   app_measure_reset_counters();
   app_cmd_reset_counters();
   app_tx_reset_drop();
   usart_reset_counters();
+
+  emit_stat();       /* 清零后立即回推一次 STAT 帧，上位机面板即刻刷新 */
 }
 
 static void ctx_ping(void)
@@ -266,16 +262,19 @@ static void on_text_line(const char *line)
   if (text_eq(p, "stat") != 0u)
   {
     emit_stat();
-    /* 同时打一份人可读的，方便没有上位机时排查 */
-    tx_text("STAT t=%lums n=%lu drop=%lu adc=%lu uart=%lu rxf=%lu frm=%lu chg=%lu\r\n",
+    /* 同时打一份人可读的，方便没有上位机时排查（含发送环丢弃字节与命令计数） */
+    tx_text("STAT t=%lums n=%lu drop=%lu adc=%lu uart=%lu rxf=%lu frm=%lu chg=%lu cmd=%lu/%lu txd=%luB\r\n",
             (unsigned long)s_ctx.tick_ms,
-            (unsigned long)s_ctx.stats.sample,
+            (unsigned long)s_ctx.samples,
             (unsigned long)app_measure_drop_count(),
             (unsigned long)app_measure_err_count(),
             (unsigned long)usart_err_count(),
             (unsigned long)(usart_rx_fail_count() + app_cmd_rx_overflow_count()),
             (unsigned long)app_cmd_frame_err_count(),
-            (unsigned long)s_ctx.alarm.change_count);
+            (unsigned long)s_ctx.alarm.change_count,
+            (unsigned long)app_cmd_ok_count(),
+            (unsigned long)app_cmd_err_count(),
+            (unsigned long)app_tx_drop_bytes());
     return;
   }
 
@@ -343,7 +342,7 @@ static void process_sample(uint16_t raw)
   uint16_t mv_filt = app_filter_push(&s_ctx.filter, mv_raw);
   app_level_t level = app_alarm_update(&s_ctx.alarm, mv_filt);
 
-  s_ctx.stats.sample++;
+  s_ctx.samples++;
   s_ctx.sample_seq++;
 
   if (level != s_ctx.last_level)
@@ -355,7 +354,7 @@ static void process_sample(uint16_t raw)
 #if (APP_REPORT_DECIM <= 1u)
   emit_sample(mv_raw, mv_filt, level);
 #else
-  if ((s_ctx.stats.sample % APP_REPORT_DECIM) == 0u)
+  if ((s_ctx.samples % APP_REPORT_DECIM) == 0u)
   {
     emit_sample(mv_raw, mv_filt, level);
   }
@@ -408,6 +407,7 @@ void app_task_init(void)
   s_ctx.stat_last_ms  = 0u;
   s_ctx.frame_seq     = 0u;
   s_ctx.sample_seq    = 0u;
+  s_ctx.samples       = 0u;
   s_ctx.last_level    = APP_LEVEL_NORMAL;
   s_ctx.led_forced    = 0u;
   s_ctx.led_forced_on = 0u;

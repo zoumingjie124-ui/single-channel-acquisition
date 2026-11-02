@@ -5,7 +5,8 @@
   1. 真实跑 3 秒演示数据流，断言：采样点收到、曲线有数据、事件表非空、
      **整帧丢失恒为 0**、没有解析错误；
   2. 人为注入一次序号跳变 + 一次 BOOT 重启，反向验证"整帧丢失检测"
-     确实在工作——否则"恒为 0"可能只是功能没实现。
+     确实在工作——否则"恒为 0"可能只是功能没实现；并验证"清零"按钮
+     能将界面与演示源计数同步归零且不破坏 seq8 连续性。
 
     python tests/gui_smoke.py
 
@@ -31,7 +32,8 @@ except ImportError as exc:            # pragma: no cover
 import main as M  # noqa: E402
 from protocol import T_BOOT, T_SAMPLE, encode  # noqa: E402,F401
 
-DURATION_MS = 3000
+DURATION_MS = 4000   # 4s：3s 时实测只能拿到约 245 点（退出时事件队列未排空），
+                     # 门槛 200 的余量太薄，机器一忙就偶发 FAIL
 
 
 def _sample_frame(seq, t_ms=1000):
@@ -40,12 +42,18 @@ def _sample_frame(seq, t_ms=1000):
 
 def check_frame_gap_detection(win):
     """
-    反向验证整帧丢失检测确实生效。
+    反向验证整帧丢失检测与清零交互确实生效。
 
-    注入 seq 10 -> 13（中间少 2 帧），计数应 +2；
-    再注入一帧 BOOT（设备重启、序号归零重来），计数不应增加，且期望值重新对齐。
+    1. 触发一次清零：采样计数应归零，随后演示源再走 1 个 tick，采样数应为 1 且无 seq8 缺口；
+    2. 注入 seq 10 -> 13（中间少 2 帧），计数应 +2；
+    3. 再注入一帧 BOOT（设备重启、序号归零重来），计数不应增加，且期望值重新对齐。
     """
     win.demo_src.stop()
+
+    win._reset_stats()
+    ok_reset_zero = (win.samples == 0 and win.lbl_samples.text() == "0")
+    win.demo_src._tick()
+    ok_reset = ok_reset_zero and (win.samples == 1) and (win.gap_count == 0)
 
     base = win.frame_gap_count
     win.expected_frame_seq = 10
@@ -58,7 +66,7 @@ def check_frame_gap_detection(win):
     win._on_frames([(T_BOOT, 200, struct.pack("<HHBBB", 0x0500, 100, 2, 8, 1))])
     ok_boot = (win.frame_gap_count == base2) and (win.expected_frame_seq == 201)
 
-    return ok_gap, ok_boot, counted
+    return ok_reset, ok_gap, ok_boot, counted
 
 
 def run():
@@ -118,10 +126,13 @@ def run():
         print("FAIL: 解析错误 %d" % errors)
         ok = False
 
-    # ---- 第二段：反向验证检测逻辑本身 ----
-    ok_gap, ok_boot, counted = check_frame_gap_detection(win)
+    # ---- 第二段：反向验证检测逻辑与清零闭环 ----
+    ok_reset, ok_gap, ok_boot, counted = check_frame_gap_detection(win)
+    print("清零同步验证  : %s" % ("OK" if ok_reset else "FAIL"))
     print("注入缺口检测  : %s（期望 +2，实得 +%d）" % ("OK" if ok_gap else "FAIL", counted))
     print("BOOT 重新对齐 : %s" % ("OK" if ok_boot else "FAIL"))
+    if not ok_reset:
+        ok = False
     if not ok_gap:
         ok = False
     if not ok_boot:

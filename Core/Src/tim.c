@@ -21,8 +21,8 @@ TIM_HandleTypeDef htim3;
 
 void MX_TIM2_Init(void)
 {
-  TIM_ClockConfigTypeDef  sClockSourceConfig;
-  TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_ClockConfigTypeDef  sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig      = {0};
 
   htim2.Instance               = TIM2;
   htim2.Init.Prescaler         = 71;      /* 72MHz / (71+1) = 1MHz */
@@ -51,8 +51,8 @@ void MX_TIM2_Init(void)
 
 void MX_TIM3_Init(void)
 {
-  TIM_ClockConfigTypeDef  sClockSourceConfig;
-  TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_ClockConfigTypeDef  sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig      = {0};
 
   htim3.Instance               = TIM3;
   htim3.Init.Prescaler         = 7199;    /* 72MHz / 7200 = 10kHz */
