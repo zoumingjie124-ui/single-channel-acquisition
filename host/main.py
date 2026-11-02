@@ -247,6 +247,10 @@ class MainWindow(QMainWindow):
         self.plot.showGrid(x=True, y=True, alpha=0.25)
         self.plot.setLabel("bottom", "时间", units="s")
         self.plot.setLabel("left", "电压", units="mV")
+        # 关掉自动 SI 前缀：否则坐标轴会被渲染成 ks / kmV（1600 s 显示成 1.6 ks），
+        # 对我们这种固定单位（秒 / 毫伏）毫无意义，反而误导读数。
+        self.plot.getAxis("bottom").enableAutoSIPrefix(False)
+        self.plot.getAxis("left").enableAutoSIPrefix(False)
         self.plot.setYRange(0, 3300)
         self.plot.addLegend(offset=(10, 10))
         self.curve_raw = self.plot.plot(pen=pg.mkPen("#90A4AE", width=1), name="原始值 raw")

@@ -61,10 +61,11 @@ def main():
     t0 = time.time()
     print("串口 %s，目标采集 %.1f 秒……" % (port, SECONDS))
     while time.time() - t0 < SECONDS:
-        # 必须按 in_waiting 取，不能 read(8192)：
-        # pyserial 的 read(n) 会一直累积到凑满 n 字节才返回，数据一直在流时
-        # 它就永远不会因为超时返回 —— 115200 下约 1.7 KB/s，凑满 8192 B 要 4.7 s，
-        # 于是"请求 3 秒"实际会跑 4.7 秒、请求 5 秒会跑 9.4 秒（多一个读周期）。
+        # 按 in_waiting 取，不用 read(8192)。
+        # 本机（Windows + CH340 + pyserial 3.5）实测：read(n) 会累积到凑满 n 字节
+        # 才返回，数据持续流入时不会在 timeout 处停下；1.7 KB/s 下凑满 8192 B 要 4.7 s，
+        # 于是"请求 3 秒"跑成 4.69 秒、"请求 5 秒"跑成 9.41 秒（多一个读周期）。
+        # 具体机制/是否与驱动版本有关尚未查证，此处只记录观测到的现象。
         n = ser.in_waiting
         if n == 0:
             time.sleep(0.005)

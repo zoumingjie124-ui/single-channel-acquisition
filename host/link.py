@@ -70,10 +70,12 @@ class SerialWorker(QThread):
                 break
 
             # 2) 接收
-            #    必须按 in_waiting 取，不能 read(4096)：
-            #    pyserial 的 read(n) 会一直累积到凑满 n 字节才返回，只要数据不断流
-            #    就永远不会因超时返回。链路上约 1.7 KB/s，凑满 4096 B 要 2.3 s，
-            #    结果就是界面 2 秒级卡顿 + 一次性涌入（实测 6 s 只处理到 468 点）。
+            #    按 in_waiting 取，不用 read(4096)。
+            #    在本机（Windows + CH340 + pyserial 3.5）实测观察到：read(n) 会一直
+            #    累积到凑满 n 字节才返回，数据持续流入时不会在 timeout 处停下。
+            #    链路约 1.7 KB/s，凑满 4096 B 要 2.3 s，表现为界面 2 秒级卡顿 + 一次性
+            #    涌入（6 s 只统计到 468 点）。具体与驱动/版本的关系尚未查证，属现象记录；
+            #    改成 in_waiting 后现象消失（16 s 收到 1597 点）。
             try:
                 n = self._ser.in_waiting
                 if n == 0:

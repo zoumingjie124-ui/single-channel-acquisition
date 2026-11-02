@@ -78,9 +78,11 @@ def main():
             break
 
         try:
-            # 按 in_waiting 取：read(n) 会累积到凑满 n 字节才返回，数据不断流时
-            # 永不超时，115200 下凑满 8192 B 要 4.7 s —— 这正是 SOAK_10MIN 里
-            # 每分钟采样数在 6107 / 5635 之间跳动的根因（打点被推迟了一个读周期）。
+            # 按 in_waiting 取：本机（Windows + CH340 + pyserial 3.5）实测，
+            # read(n) 会累积到凑满 n 字节才返回，数据持续流入时不在 timeout 处停下；
+            # 1.7 KB/s 下凑满 8192 B 要 4.7 s —— 这是 SOAK_10MIN 里每分钟采样数
+            # 在 6107 / 5635 之间跳动的观测到的原因（打点被推迟一个读周期）。
+            # 具体机制尚未查证，改用 in_waiting 后波动消失。
             n_avail = ser.in_waiting
             if n_avail == 0:
                 time.sleep(0.005)
