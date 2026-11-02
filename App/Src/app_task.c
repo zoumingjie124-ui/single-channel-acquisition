@@ -322,6 +322,22 @@ static void on_text_line(const char *line)
     return;
   }
 
+#if (APP_DEBUG_INJECT != 0u)
+  /* 阶段一测试专用：注入一次"ADC 错误"，验证恢复链路。
+     只置错误标志（app_measure_on_error -> s_recover_req=1），
+     不触碰硬件、不制造真实 DMA 故障；下一轮主循环会照常执行
+     DeInit/Init/校准/Start_DMA。默认编译开关为 0，不进 Release 固件。 */
+  if (text_eq(p, "adcinject") != 0u)
+  {
+    app_measure_on_error();
+    tx_text("OK inject: adc_err=%lu rec_ok=%lu rec_fail=%lu\r\n",
+            (unsigned long)app_measure_err_count(),
+            (unsigned long)app_measure_recover_ok(),
+            (unsigned long)app_measure_recover_fail());
+    return;
+  }
+#endif
+
   tx_text("ERR unknown command: %s\r\n", p);
 }
 
