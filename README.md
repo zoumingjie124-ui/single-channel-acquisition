@@ -21,7 +21,7 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
 > - **Stage 6 第 1 项** 1 小时连续运行：✅ **3600 s / 360047 帧 / 100.010 Hz**，drops·丢帧·错误·复位·重连全 0，H1–H12 **12/12 PASS**（§17，记录 `docs/SOAK_60MIN_RECORD.md`）
 > - **Stage 7** 多类型故障诊断设计审查：✅ 只出设计、**未改固件**（`docs/STAGE7_FAULT_DIAG_DESIGN.md`）
 > - **Stage 7B** 信号卡死诊断模块：✅ `app_diag.c` + **121 条**单测（合计 288）；上板**只验了"默认关闭态 10 分钟长跑"**，触发/恢复当时无使能手段，后由 7C 的 `SET_DIAG` 补验（`docs/STAGE7B_*.md`）
-> - **Stage 7C** 故障协议上报 + 上位机：✅ 板级实测——使能后 **3.02 s** 确认（`span=9 mV`）、人手拧动 `span=187 mV` **恢复**、停手后再次确认；非法参数被拒、关闭诊断不伪造恢复（§`STAGE7C_FAULT_PROTOCOL.md`）
+> - **Stage 7C** 故障协议上报 + 上位机：✅ 板级实测——使能后 **3.02 s** 确认（`span=9 mV`）、人手拧动 `span=187 mV` **恢复**、停手后再次确认；非法参数被拒、关闭诊断不伪造恢复（`docs/STAGE7C_FAULT_PROTOCOL.md`）
 > - **Stage 7C-2** `GET_DIAG` 状态快照 + TX 提交失败恢复：✅ 板级实测——**ACK 先于快照**（seq 46→47）、无故障/有故障快照字段正确、断线期间发生的恢复由重连快照给出真相、连续轮询抓到 **57 帧 `active=0`**；全程 915 帧 SEQ 异常 0（`docs/STAGE7C2_FINAL.md`）
 > - 仍未测：**8 小时长跑**、**绝对电压精度（等万用表）**、**真实 HAL 重挂失败**、告警滞回手感、INL/DNL、**TX 环真实满载后的重试**、**真实传感器诊断**、**诊断开启 1h/8h**、**GUI 点按钮连真板** —— 见 §7 与 `TEST_INVENTORY` §5（R1–R21）；**具体怎么测见 `docs/HW_VERIFY_NEXT.md`**
 
