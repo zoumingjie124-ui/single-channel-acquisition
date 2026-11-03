@@ -2,7 +2,7 @@
 rem ---------------------------------------------------------------------------
 rem  Firmware C unit tests (PC / GCC)
 rem  Builds the REAL firmware sources, not a copy:
-rem      ..\App\Src\app_proto.c  app_alarm.c  app_filter.c
+rem      ..\App\Src\app_proto.c  app_alarm.c  app_filter.c  app_diag.c
 rem  Usage: run from this folder  ->  run_tests.bat
 rem ---------------------------------------------------------------------------
 setlocal
@@ -23,8 +23,9 @@ echo Compiler:
 echo.
 
 "%GCC%" -std=c99 -Wall -Wextra -Werror -O2 -I..\App\Inc -I. ^
-  main.c test_proto.c test_alarm.c test_filter.c ^
+  main.c test_proto.c test_alarm.c test_filter.c test_diag.c ^
   ..\App\Src\app_proto.c ..\App\Src\app_alarm.c ..\App\Src\app_filter.c ^
+  ..\App\Src\app_diag.c ^
   -o fw_tests.exe
 
 if errorlevel 1 (

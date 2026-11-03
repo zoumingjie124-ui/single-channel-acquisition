@@ -72,6 +72,34 @@
 #define APP_THR_HYST_MV         50u
 #define APP_ALARM_DEBOUNCE_CNT  3u
 
+/* ----------------------------- 故障诊断参数 ---------------------------- */
+/* Stage 7B：信号卡死检测。**默认关闭** —— 打开前需先用真实传感器标定
+   APP_DIAG_STUCK_DELTA_MV，否则稳定的正常输入会被误判（见 STAGE7 设计文档 §2.2.4）。 */
+#define APP_DIAG_STUCK_ENABLE_DEFAULT   0u
+
+/* 卡死判定阈值：一个块内 (max-min) 小于它即记为"偏死块"。
+   依据：实测静置峰峰 11 mV（σ 2.40 mV）、电位器接触噪声峰峰 18 mV，
+   50 mV 约为前者的 4.5 倍；≈ 满量程 1/66。
+   ⚠ 待确定：真实传感器若本来就很稳，3 s 内变化 < 50 mV 属正常。 */
+#define APP_DIAG_STUCK_DELTA_MV         50u
+
+/* 块长度。1 s 与 STAT 周期对齐，便于人工比对日志 */
+#define APP_DIAG_BLOCK_MS               1000u
+
+/* 连续多少个偏死块才确认卡死。3 × 1 s = 3 s（用户要求的 N 秒） */
+#define APP_DIAG_STUCK_CONFIRM_BLOCKS   3u
+
+/* 连续多少个干净块才恢复。取 2 而不是 1：
+   实测接触噪声最大单步 +38 mV，一个毛刺就能造出一个"干净块"，
+   要求连续 2 块（2 s）可避免故障被瞬间清掉。 */
+#define APP_DIAG_STUCK_RECOVER_BLOCKS   2u
+
+/* 一个块至少要有这么多样本才参与判定。
+   依据：100 Hz 下 1 s = 100 个样本，取一半（50）意味着"这个块至少有一半数据"，
+   其 span 才有统计意义。样本不足的块会被计入 uneval_blocks 并跳过——
+   只有一个样本时 span 恒为 0，那是"没数据"不是"没变化"。 */
+#define APP_DIAG_MIN_BLOCK_SAMPLES      50u
+
 /* ------------------------------ 串口与协议 ------------------------------ */
 /* 发送环形缓冲：100Hz × 16B = 1600B/s，1024B 可缓冲 640ms，足够 */
 #define APP_TX_RING_SIZE        1024u
@@ -111,6 +139,29 @@
 #endif
 #if (APP_REPORT_DECIM == 0u)
 #error "APP_REPORT_DECIM must be >= 1"
+#endif
+
+/* ------------------------- 故障诊断参数的编译期约束 ------------------------- */
+#if (APP_DIAG_STUCK_ENABLE_DEFAULT > 1u)
+#error "APP_DIAG_STUCK_ENABLE_DEFAULT must be 0 or 1"
+#endif
+#if (APP_DIAG_STUCK_CONFIRM_BLOCKS < 1u)
+#error "APP_DIAG_STUCK_CONFIRM_BLOCKS must be >= 1"
+#endif
+#if (APP_DIAG_STUCK_RECOVER_BLOCKS < 1u)
+#error "APP_DIAG_STUCK_RECOVER_BLOCKS must be >= 1"
+#endif
+#if (APP_DIAG_BLOCK_MS < 100u)
+#error "APP_DIAG_BLOCK_MS too short: one block would hold almost no samples"
+#endif
+#if (APP_DIAG_STUCK_DELTA_MV == 0u)
+#error "APP_DIAG_STUCK_DELTA_MV must be > 0 (0 would make every block look stuck)"
+#endif
+/* 单块最多能装多少样本：BLOCK_MS / 采样周期。
+   周期 = 1000 / APP_SAMPLE_RATE_MS，所以样本数 = BLOCK_MS * RATE / 1000。
+   MIN_BLOCK_SAMPLES 超过这个数 => 每个块都"样本不足" => 诊断永远不工作。 */
+#if (APP_DIAG_MIN_BLOCK_SAMPLES > ((APP_DIAG_BLOCK_MS * APP_SAMPLE_RATE_HZ) / 1000u))
+#error "APP_DIAG_MIN_BLOCK_SAMPLES exceeds max samples per block; diagnosis would never run"
 #endif
 
 #endif /* __APP_CONFIG_H */

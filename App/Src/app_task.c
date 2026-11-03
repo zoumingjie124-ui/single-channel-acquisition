@@ -29,6 +29,7 @@
 #include "app_filter.h"
 #include "app_alarm.h"
 #include "app_cmd.h"
+#include "app_diag.h"
 #include "usart.h"
 
 /* LED 闪烁节奏：WARN 用 250ms 翻转一次（2Hz） */
@@ -46,6 +47,7 @@ typedef struct
 
   app_filter_t filter;
   app_alarm_t  alarm;
+  app_diag_t   diag;      /* Stage 7B：故障诊断（默认关闭，见 app_config.h） */
 
   uint8_t   led_forced;      /* 1 = 被 led 命令接管 */
   uint8_t   led_forced_on;
@@ -178,6 +180,7 @@ static void ctx_reset_stats(void)
   app_cmd_reset_counters();
   app_tx_reset_drop();
   usart_reset_counters();
+  app_diag_reset_counters(&s_ctx.diag);   /* 只清计数，不清卡死状态（见 app_diag.h） */
 
   emit_stat();       /* 清零后立即回推一次 STAT 帧，上位机面板即刻刷新 */
 }
@@ -393,6 +396,10 @@ static void process_sample(uint16_t raw)
   uint16_t mv_filt = app_filter_push(&s_ctx.filter, mv_raw);
   app_level_t level = app_alarm_update(&s_ctx.alarm, mv_filt);
 
+  /* Stage 7B：信号卡死诊断。放在告警之后——它只读 mv_raw，不写任何东西，
+     所以顺序不影响滤波与告警的结果。enable 为 0 时函数体内两次判断即返回。 */
+  app_diag_update(&s_ctx.diag, mv_raw, s_ctx.tick_ms);
+
   s_ctx.samples++;
   s_ctx.sample_seq++;
 
@@ -465,6 +472,7 @@ void app_task_init(void)
 
   app_filter_init(&s_ctx.filter);
   app_alarm_init(&s_ctx.alarm, APP_THR_WARN_MV, APP_THR_CRIT_MV);
+  app_diag_init(&s_ctx.diag);      /* 默认关闭；打开前需先标定阈值 */
   app_measure_init();
   app_cmd_init(&s_ops);
 
