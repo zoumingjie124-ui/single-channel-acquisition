@@ -176,7 +176,11 @@ Program Size: Code=22204  RO-data=1000  RW-data=148  ZI-data=4956
 
 ## 6. Git
 
-commit：见本轮提交（`feat(diag): Stage 7C ...`），父提交 `6112267`。
+| 项 | 值 |
+|---|---|
+| 7C 提交 | **`b198ef8`** — `feat(diag): Stage 7C 故障诊断协议上报 + 上位机集成 + 板级验证` |
+| 父提交 | `6112267`（Stage 7B：信号卡死诊断模块） |
+| 分支 | `main`（与远端同步，未强制推送） |
 
 ---
 
