@@ -29,7 +29,11 @@
 UART_HandleTypeDef huart1;
 
 static uint8_t  s_rx_dma[APP_RX_DMA_BUF_LEN];
-static uint32_t s_err_cnt;      /* 硬件错误次数 */
+static uint32_t s_err_cnt;      /* 硬件错误总次数 */
+static uint32_t s_err_ore;      /* 其中：溢出（Overrun） */
+static uint32_t s_err_fe;       /* 其中：帧错误（Framing） */
+static uint32_t s_err_ne;       /* 其中：噪声（Noise） */
+static uint32_t s_err_pe;       /* 其中：校验（Parity，8N1 下正常为 0） */
 static uint32_t s_rx_fail;      /* 重新武装失败次数 */
 
 void MX_USART1_UART_Init(void)
@@ -62,6 +66,13 @@ uint32_t usart_err_count(void)
   return s_err_cnt;
 }
 
+/* 分类计数：只靠一个总数看不出"到底哪种错误"，
+   而 ORE 与 FE/NE 的处理路径并不完全相同（ORE 多一步清标志）。 */
+uint32_t usart_err_ore_count(void) { return s_err_ore; }
+uint32_t usart_err_fe_count(void)  { return s_err_fe;  }
+uint32_t usart_err_ne_count(void)  { return s_err_ne;  }
+uint32_t usart_err_pe_count(void)  { return s_err_pe;  }
+
 uint32_t usart_rx_fail_count(void)
 {
   return s_rx_fail;
@@ -72,14 +83,53 @@ void usart_reset_counters(void)
   uint32_t primask = __get_PRIMASK();
   __disable_irq();
   s_err_cnt = 0u;
+  s_err_ore = 0u;
+  s_err_fe  = 0u;
+  s_err_ne  = 0u;
+  s_err_pe  = 0u;
   s_rx_fail = 0u;
   __set_PRIMASK(primask);
 }
 
+#if (APP_DEBUG_INJECT != 0u)
 /**
-  * @brief  接收事件回调：IDLE 空闲、DMA 缓冲满（TC）、DMA 半传输（HT）都会进来
-  * @param  Size 本次收到的字节数
+  * @brief  制造一次真实的硬件 ORE，并立刻恢复接收（仅调试构建使用）
+  * @retval 1 = 硬件确实置起了 ORE；0 = 没能置起来
+  *
+  * @note   为什么不能靠"短接 RX 到 GND"来测 ORE：
+  *         RX 被拉低只会产生**一次**帧错误（之后线路不回高电平就检测不到新的
+  *         起始位），而 ORE 的定义是"DR 里的字节没被取走又来了新字节"。
+  *         这里换一种做法——先停掉接收让 DMA 不再取走 DR，主机在随后的
+  *         30 ms 里继续发字节，第 2 个字节到达时硬件就会置 ORE。
+  *
+  * @note   实测结论（2026-11-03）：ORE 一旦产生，只要重新挂接收，
+  *         DMA 读走 DR 的同时就会把 ORE 清掉，**错误中断来不及执行**，
+  *         所以 `HAL_UART_ErrorCallback` 不会因此被调用、`uart_err` 也不会增加。
+  *         这本身说明：本设计里 ORE 不会造成链路停摆。
+  *         错误回调路径由 FE/NE（波特率不匹配）那组用例覆盖。
   */
+uint8_t usart_ore_inject(void)
+{
+  uint8_t saw_ore;
+
+  if (HAL_UART_AbortReceive(&huart1) != HAL_OK)
+  {
+    return 0u;
+  }
+
+  HAL_Delay(30u);          /* 主机在这 30 ms 内持续发字节 */
+
+  saw_ore = ((USART1->SR & USART_SR_ORE) != 0u) ? 1u : 0u;
+
+  /* 先清硬件标志再重挂，否则 ReceiveToIdle_DMA 会因"启动时已有错误挂起"返回失败 */
+  __HAL_UART_CLEAR_OREFLAG(&huart1);
+  usart_start_rx();
+
+  return saw_ore;
+}
+
+#endif /* APP_DEBUG_INJECT */
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
   if (huart->Instance == USART1)
@@ -132,9 +182,24 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 
   s_err_cnt++;
 
+  /* 按类型分开记：HAL 每次进中断前会把 ErrorCode 累加进来、出中断前清零，
+     所以这里读到的就是"本次事件"的位组合，不会重复计数。 */
   if ((huart->ErrorCode & HAL_UART_ERROR_ORE) != 0u)
   {
+    s_err_ore++;
     __HAL_UART_CLEAR_OREFLAG(huart);
+  }
+  if ((huart->ErrorCode & HAL_UART_ERROR_FE) != 0u)
+  {
+    s_err_fe++;
+  }
+  if ((huart->ErrorCode & HAL_UART_ERROR_NE) != 0u)
+  {
+    s_err_ne++;
+  }
+  if ((huart->ErrorCode & HAL_UART_ERROR_PE) != 0u)
+  {
+    s_err_pe++;
   }
 
   if (huart->gState != HAL_UART_STATE_BUSY_TX)

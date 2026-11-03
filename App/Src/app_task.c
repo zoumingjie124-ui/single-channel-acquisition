@@ -275,6 +275,12 @@ static void on_text_line(const char *line)
             (unsigned long)app_cmd_ok_count(),
             (unsigned long)app_cmd_err_count(),
             (unsigned long)app_tx_drop_bytes());
+    /* 分类错误计数单独一行：只加在文本通道，二进制 STAT 帧格式不变 */
+    tx_text("ERRSRC ore=%lu fe=%lu ne=%lu pe=%lu\r\n",
+            (unsigned long)usart_err_ore_count(),
+            (unsigned long)usart_err_fe_count(),
+            (unsigned long)usart_err_ne_count(),
+            (unsigned long)usart_err_pe_count());
     return;
   }
 
@@ -334,6 +340,22 @@ static void on_text_line(const char *line)
             (unsigned long)app_measure_err_count(),
             (unsigned long)app_measure_recover_ok(),
             (unsigned long)app_measure_recover_fail());
+    return;
+  }
+
+  /* 阶段三测试专用：制造一次**真实**的硬件 ORE。
+     做法是先停掉接收（DMA 不再取走 DR），主机在随后 30 ms 内继续发字节，
+     第 2 个字节到达时硬件置 ORE；然后重新挂接收，让真实的中断路径处理它。
+     返回值：0=没造出来 / 1=中断路径自行恢复 / 2=需兜底。 */
+  if (text_eq(p, "oreinject") != 0u)
+  {
+    uint8_t r = usart_ore_inject();   /* 1 = 硬件确实置起了 ORE */
+    tx_text("OK oreinject: saw_ore=%u ore=%lu fe=%lu uart=%lu rxf=%lu\r\n",
+            (unsigned)r,
+            (unsigned long)usart_err_ore_count(),
+            (unsigned long)usart_err_fe_count(),
+            (unsigned long)usart_err_count(),
+            (unsigned long)usart_rx_fail_count());
     return;
   }
 #endif
