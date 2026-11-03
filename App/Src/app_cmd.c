@@ -31,6 +31,8 @@ static uint32_t s_frame_err;
 static uint32_t s_ok_cnt;
 static uint32_t s_err_cnt;
 static uint32_t s_rx_ovf;
+static uint32_t s_parser_tmo;      /* 半截帧超时复位次数 */
+static uint32_t s_last_byte_ms;    /* 最近一次消费字节的时刻（ms） */
 
 static char     s_line[APP_LINE_BUF_SIZE];
 static uint8_t  s_line_len;
@@ -183,6 +185,8 @@ void app_cmd_init(const app_cmd_ops_t *ops)
   s_ok_cnt    = 0u;
   s_err_cnt   = 0u;
   s_rx_ovf    = 0u;
+  s_parser_tmo = 0u;
+  s_last_byte_ms = 0u;
   s_line_len  = 0u;
   proto_parser_init(&s_parser);
 }
@@ -210,15 +214,26 @@ void app_cmd_rx_isr(const uint8_t *data, uint16_t len)
   }
 }
 
-void app_cmd_poll(void)
+void app_cmd_poll(uint32_t now_ms)
 {
   uint8_t b;
   uint8_t r;
+
+  /* 半截帧超时判定必须放在喂字节**之前**：
+     否则新到的一整帧会先被塞进那个卡住的旧状态里，等处理完再判超时就晚了
+     （那时 s_last_byte_ms 刚被更新，永远不会触发）。 */
+  if ((proto_parser_is_idle(&s_parser) == 0u) &&
+      ((uint32_t)(now_ms - s_last_byte_ms) > APP_RX_FRAME_TIMEOUT_MS))
+  {
+    proto_parser_init(&s_parser);
+    s_parser_tmo++;
+  }
 
   while (s_rx_tail != s_rx_head)
   {
     b = s_rx_ring[s_rx_tail];
     s_rx_tail = (uint16_t)((s_rx_tail + 1u) & RX_MASK);
+    s_last_byte_ms = now_ms;
 
     if (proto_parser_is_idle(&s_parser) != 0u)
     {
@@ -236,6 +251,11 @@ void app_cmd_poll(void)
       s_err_cnt++;
     }
   }
+}
+
+uint32_t app_cmd_parser_timeout_count(void)
+{
+  return s_parser_tmo;
 }
 
 uint32_t app_cmd_frame_err_count(void)
@@ -264,4 +284,7 @@ void app_cmd_reset_counters(void)
   s_ok_cnt    = 0u;
   s_err_cnt   = 0u;
   s_rx_ovf    = 0u;
+  s_parser_tmo = 0u;
+  /* 不清 s_last_byte_ms：时基要连续，否则若此刻 parser 正处在半帧中间，
+     清零会立刻满足超时条件，把正在进行的一帧误清掉 */
 }

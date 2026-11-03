@@ -673,3 +673,30 @@ RESULT: PASS
 > 当前正式固件基线：**Code=20876 / RO 996 / RW 124 / ZI 4916**，0 Error 0 Warning。
 > 板上已烧回正式版，实测 2 s / 200 帧 = 100.0 Hz。
 
+### 14.1 补充加固 A/B（2026-11-03 09:12–09:23）
+
+完整报告 `docs/STAGE3_GUARD.md`；原始记录 `docs/STAGE3_GUARD_RAW.txt`；工具 `host/tools/uart_guard.py`。
+参数：`APP_RX_FRAME_TIMEOUT_MS = 50`、`APP_RX_RESTART_INTERVAL_MS = 200`。
+
+| 项 | 内容 | 判定 |
+|---|---|---|
+| **A** parser 空闲超时复位 | 超时判定放在**喂字节之前**；只复位 parser，不动 rx 环；`reset` 不清时间戳 | **PASS** |
+| **B** RX 重挂守护 | 以 `RxState != BUSY_RX` 判定；限速 200 ms；PRIMASK 内二次检查 + 启动 | **PASS** |
+
+A 组 6 项：正常帧 10/10、半截帧+100 ms 后 **ACK（pto +1）**、分段 15 ms 不误判（pto +0）、
+背靠背 20/20、**边界 45 ms 丢 / 62 ms 收**、连续 5 次超时 5/5（pto +5）。
+B 组 6 项：单次恢复 152 ms、连续 3 次全恢复、50 ms 内两次恢复 322 ms（两个限速窗口）、
+恢复后 10/10、`rxstop` 期间 SAMPLE 仍 30 帧/300 ms（TX 正常）、3 分钟 9 次注入 9 次恢复（fail 0）。
+
+回归：
+
+| 用例 | 加固前 | 加固后 |
+|---|---|---|
+| **T3 半截帧** | 收帧 1/3 | **收帧 3/3、`frm +0`** |
+| 其余 8 项 | — | 与首轮一致（T8 仍只认「解析错误 0」） |
+| 上位机单测 | 28 项 OK | 28 项 OK |
+| 采样频率 | 100.0 Hz | 100.0 Hz |
+
+尺寸：Release **20876 → 21208**（+332 B，RW 124 → 148）；Debug 21792。
+NOT TESTED：8 小时长跑、真实 HAL 返回 BUSY 的重挂失败、其他超时参数、GUI 长时联调。
+

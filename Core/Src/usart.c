@@ -34,7 +34,11 @@ static uint32_t s_err_ore;      /* 其中：溢出（Overrun） */
 static uint32_t s_err_fe;       /* 其中：帧错误（Framing） */
 static uint32_t s_err_ne;       /* 其中：噪声（Noise） */
 static uint32_t s_err_pe;       /* 其中：校验（Parity，8N1 下正常为 0） */
-static uint32_t s_rx_fail;      /* 重新武装失败次数 */
+static uint32_t s_rx_fail;      /* 重新武装失败次数（ISR 内） */
+static uint32_t s_rst_try;      /* 主循环守护：重挂尝试次数 */
+static uint32_t s_rst_ok;       /* 主循环守护：重挂成功次数 */
+static uint32_t s_rst_fail;     /* 主循环守护：重挂失败次数 */
+static uint32_t s_guard_ms;     /* 上次守护尝试的时刻 */
 
 void MX_USART1_UART_Init(void)
 {
@@ -52,14 +56,78 @@ void MX_USART1_UART_Init(void)
   }
 }
 
-void usart_start_rx(void)
+uint8_t usart_start_rx(void)
 {
   if (HAL_UARTEx_ReceiveToIdle_DMA(&huart1, s_rx_dma, APP_RX_DMA_BUF_LEN) != HAL_OK)
   {
     /* 启动失败必须计数：否则链路静默死亡，没人知道 */
     s_rx_fail++;
+    return 0u;
   }
+  return 1u;
 }
+
+/**
+  * @brief  RX 重挂守护：主循环每轮调用一次，代价是一次状态比较
+  * @note   判定依据是 HAL 的真实状态 RxState，而不是"失败计数涨没涨"——
+  *         计数器只能说明"曾经失败过"，无法说明"现在在不在接收"。
+  *         临界区内做"二次检查 + 启动"，防止与两个中断回调里的重挂撞车：
+  *         若 ISR 刚重挂好，这里的二次检查会看到 BUSY_RX 而跳过，不会重复启动。
+  */
+uint8_t usart_rx_guard(uint32_t now_ms)
+{
+  uint32_t primask;
+  uint8_t  r = USART_RX_GUARD_NONE;
+
+  if (huart1.RxState == HAL_UART_STATE_BUSY_RX)
+  {
+    return USART_RX_GUARD_NONE;          /* 正在收，什么都不做 */
+  }
+
+  /* 限速：首次立即，其后每 APP_RX_RESTART_INTERVAL_MS 一次 */
+  if ((uint32_t)(now_ms - s_guard_ms) < APP_RX_RESTART_INTERVAL_MS)
+  {
+    return USART_RX_GUARD_NONE;
+  }
+
+  primask = __get_PRIMASK();
+  __disable_irq();
+
+  if (huart1.RxState != HAL_UART_STATE_BUSY_RX)   /* 二次检查 */
+  {
+    s_guard_ms = now_ms;
+    s_rst_try++;
+    if (usart_start_rx() != 0u)
+    {
+      s_rst_ok++;
+      r = USART_RX_GUARD_OK;
+    }
+    else
+    {
+      s_rst_fail++;
+      r = USART_RX_GUARD_FAIL;
+    }
+  }
+
+  __set_PRIMASK(primask);
+  return r;
+}
+
+uint32_t usart_rx_restart_try_count(void)  { return s_rst_try;  }
+uint32_t usart_rx_restart_ok_count(void)   { return s_rst_ok;   }
+uint32_t usart_rx_restart_fail_count(void) { return s_rst_fail; }
+
+#if (APP_DEBUG_INJECT != 0u)
+/**
+  * @brief  仅调试构建：停掉接收且**不重挂**，制造"TX 正常、RX 停摆"的状态
+  * @note   正是"某次重挂失败之后"的真实状态（RxState = READY，DMA 已 abort），
+  *         用它来验证主循环守护能否自动救回来。
+  */
+void usart_rx_stop_for_test(void)
+{
+  (void)HAL_UART_AbortReceive(&huart1);
+}
+#endif
 
 uint32_t usart_err_count(void)
 {
@@ -88,6 +156,9 @@ void usart_reset_counters(void)
   s_err_ne  = 0u;
   s_err_pe  = 0u;
   s_rx_fail = 0u;
+  s_rst_try = 0u;
+  s_rst_ok = 0u;
+  s_rst_fail = 0u;
   __set_PRIMASK(primask);
 }
 

@@ -276,11 +276,14 @@ static void on_text_line(const char *line)
             (unsigned long)app_cmd_err_count(),
             (unsigned long)app_tx_drop_bytes());
     /* 分类错误计数单独一行：只加在文本通道，二进制 STAT 帧格式不变 */
-    tx_text("ERRSRC ore=%lu fe=%lu ne=%lu pe=%lu\r\n",
+    tx_text("ERRSRC ore=%lu fe=%lu ne=%lu pe=%lu pto=%lu rxrst=%lu/%lu\r\n",
             (unsigned long)usart_err_ore_count(),
             (unsigned long)usart_err_fe_count(),
             (unsigned long)usart_err_ne_count(),
-            (unsigned long)usart_err_pe_count());
+            (unsigned long)usart_err_pe_count(),
+            (unsigned long)app_cmd_parser_timeout_count(),
+            (unsigned long)usart_rx_restart_ok_count(),
+            (unsigned long)usart_rx_restart_fail_count());
     return;
   }
 
@@ -356,6 +359,16 @@ static void on_text_line(const char *line)
             (unsigned long)usart_err_fe_count(),
             (unsigned long)usart_err_count(),
             (unsigned long)usart_rx_fail_count());
+    return;
+  }
+
+  /* 阶段三加固验证专用：停掉接收且不重挂，制造"TX 正常、RX 停摆"。
+     主循环的 usart_rx_guard() 应在 200 ms 内把它救回来。 */
+  if (text_eq(p, "rxstop") != 0u)
+  {
+    usart_rx_stop_for_test();
+    tx_text("OK rxstop: rx halted, guard should restart within %ums\r\n",
+            (unsigned)APP_RX_RESTART_INTERVAL_MS);
     return;
   }
 #endif
@@ -464,7 +477,7 @@ void app_task_run(void)
   uint8_t  n;
 
   /* 1. 命令优先：让上位机的阈值修改尽快生效 */
-  app_cmd_poll();
+  app_cmd_poll(s_ctx.tick_ms);
 
   /* 2. 排空采样（有上限，避免一次处理太多拉长循环时间） */
   for (n = 0u; n < APP_SAMPLE_MAX_PER_RUN; n++)
@@ -509,6 +522,21 @@ void app_task_run(void)
     else
     {
       /* 无动作 */
+    }
+  }
+
+  /* 5.5 RX 重挂守护：接收若没在跑（重挂失败 / 被 abort），按 200 ms 限速救回来。
+     放在 ADC 恢复之后，避免同一轮里做两次阻塞操作。 */
+  {
+    uint8_t rr = usart_rx_guard(s_ctx.tick_ms);
+    if (rr == USART_RX_GUARD_OK)
+    {
+      tx_text("[rec] uart rx restarted\r\n");
+    }
+    else if (rr == USART_RX_GUARD_FAIL)
+    {
+      tx_text("[rec] uart rx restart failed, retry in %ums\r\n",
+              (unsigned)APP_RX_RESTART_INTERVAL_MS);
     }
   }
 

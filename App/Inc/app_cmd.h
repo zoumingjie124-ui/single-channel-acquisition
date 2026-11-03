@@ -32,10 +32,12 @@ void app_cmd_init(const app_cmd_ops_t *ops);
 /* 由 UART 接收回调调用（中断上下文）：只搬运，不解析 */
 void app_cmd_rx_isr(const uint8_t *data, uint16_t len);
 
-/* 主循环调用：解析并分发 */
-void app_cmd_poll(void);
+/* 主循环调用：解析并分发。
+   now_ms 用于半截帧空闲超时判定（传主循环的 1 ms 时基即可）。 */
+void app_cmd_poll(uint32_t now_ms);
 
 uint32_t app_cmd_frame_err_count(void);
+uint32_t app_cmd_parser_timeout_count(void);
 uint32_t app_cmd_ok_count(void);
 uint32_t app_cmd_err_count(void);
 uint32_t app_cmd_rx_overflow_count(void);
