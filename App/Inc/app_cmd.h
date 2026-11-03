@@ -26,6 +26,11 @@ typedef struct
   /* Stage 7C：使能/关闭故障诊断。返回 1 = 已接受，0 = 拒绝（回 ACK 参数错误） */
   uint8_t (*set_diag)(uint8_t enable);
 
+  /* Stage 7C-2：请求一帧故障状态快照。返回 1 = 已受理（快照稍后由主循环发出），
+     0 = 拒绝（回 ACK 参数错误）。**回调里不许直接发快照**：
+     ACK 由 app_cmd 在回调返回后统一发出，若这里先发快照，顺序就反了。 */
+  uint8_t (*get_diag)(void);
+
   /* 文本命令回调，line 已去掉行尾 */
   void    (*text_line)(const char *line);
 } app_cmd_ops_t;

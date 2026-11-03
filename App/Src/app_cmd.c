@@ -141,6 +141,26 @@ static void on_frame(uint8_t type, uint8_t seq, const uint8_t *payload, uint8_t 
       }
       break;
 
+    case PROTO_T_GET_DIAG:
+      /* 只接受无载荷请求。回调只置"待发快照"标志，真正的帧由主循环发，
+         这样 ACK 一定排在快照前面（见 app_cmd.h 的注释）。 */
+      if (len != PROTO_LEN_GET_DIAG)
+      {
+        res = CMD_RES_PARAM;
+      }
+      else if (s_ops->get_diag != 0)
+      {
+        if (s_ops->get_diag() == 0u)
+        {
+          res = CMD_RES_PARAM;
+        }
+      }
+      else
+      {
+        res = CMD_RES_UNKNOWN;
+      }
+      break;
+
     default:
       res = CMD_RES_UNKNOWN;
       break;

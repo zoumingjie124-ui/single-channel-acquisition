@@ -43,6 +43,7 @@ T_GET_STAT = 0x12
 T_RESET = 0x13
 T_PING = 0x14
 T_SET_DIAG = 0x15
+T_GET_DIAG = 0x16
 
 TYPE_NAMES = {
     T_SAMPLE: "SAMPLE",
@@ -57,6 +58,7 @@ TYPE_NAMES = {
     T_RESET: "RESET",
     T_PING: "PING",
     T_SET_DIAG: "SET_DIAG",
+    T_GET_DIAG: "GET_DIAG",
 }
 
 LEVEL_NAMES = {0: "NORMAL", 1: "WARN", 2: "CRIT"}
@@ -64,12 +66,18 @@ LEVEL_NAMES = {0: "NORMAL", 1: "WARN", 2: "CRIT"}
 ACK_RESULTS = {0: "OK", 1: "参数错误", 2: "未知命令"}
 
 # FAULT 帧的字段取值，与 app_proto.h 一一对应
+FAULT_EV_SNAPSHOT = 0
 FAULT_EV_CONFIRM = 1
 FAULT_EV_RECOVER = 2
-FAULT_EVENT_NAMES = {FAULT_EV_CONFIRM: "确认", FAULT_EV_RECOVER: "恢复"}
+FAULT_EVENT_NAMES = {
+    FAULT_EV_SNAPSHOT: "快照",
+    FAULT_EV_CONFIRM: "确认",
+    FAULT_EV_RECOVER: "恢复",
+}
 
+FAULT_ID_NONE = 0
 FAULT_ID_STUCK = 1
-FAULT_ID_NAMES = {FAULT_ID_STUCK: "STUCK 卡死"}
+FAULT_ID_NAMES = {FAULT_ID_NONE: "无故障", FAULT_ID_STUCK: "STUCK 卡死"}
 
 FAULT_MASK_STUCK = 0x01
 FAULT_MASK_NAMES = {FAULT_MASK_STUCK: "STUCK"}
@@ -192,6 +200,11 @@ class Fault:
         return "+".join(names) if names else "无"
 
     @property
+    def is_snapshot(self) -> bool:
+        """event=0：这是"当前状态快照"，不是一次新的确认/恢复事件。"""
+        return self.event == FAULT_EV_SNAPSHOT
+
+    @property
     def text(self) -> str:
         return "%s %s" % (self.fault_name, self.event_name)
 
@@ -272,6 +285,11 @@ def build_ping(seq: int) -> bytes:
 def build_set_diag(enable: bool, seq: int) -> bytes:
     """故障诊断开关。固件只接受 0/1，其余值回 ACK 参数错误（不进回调）。"""
     return encode(T_SET_DIAG, seq, bytes([1 if enable else 0]))
+
+
+def build_get_diag(seq: int) -> bytes:
+    """查询故障状态快照（LEN=0）。设备回 ACK + 一帧 event=0 的 FAULT。"""
+    return encode(T_GET_DIAG, seq, b"")
 
 
 # ------------------------------ 增量解析 ------------------------------

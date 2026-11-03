@@ -110,6 +110,40 @@ def check_fault_ui(win):
     return ok_enable, ok_confirm, ok_recover, ok_unknown
 
 
+def check_snapshot_ui(win):
+    """
+    Stage 7C-2：GET_DIAG 快照与界面联动。
+
+    仍是**软件模拟**（往界面喂帧 / 走演示源），证明：
+      - 进演示（等同连接成功）会自动查一次；
+      - event=0 的快照把本地故障状态清成"无"，且不是"恢复事件"。
+    """
+    win.demo_src.stop()
+    win.expected_frame_seq = None
+    win.expected_seq = None
+
+    log_text = win.log.toPlainText()
+    ok_auto = ("查询故障状态" in log_text) and ("状态同步" in log_text)
+
+    # 先造一个"有故障"的显示
+    seq = 0x70
+    win._on_frames(win.parser.feed(
+        encode(T_FAULT, seq, struct.pack("<IBBBH", 1000, 1, 1, 1, 12))))
+    before = win.lbl_fault.text()
+
+    # 再来一帧"无故障"的快照：应把显示清成"无"，且日志记"状态同步"而不是"恢复"
+    win._on_frames(win.parser.feed(
+        encode(T_FAULT, (seq + 1) & 0xFF, struct.pack("<IBBBH", 2000, 0, 0, 0, 0))))
+    after = win.lbl_fault.text()
+    ok_clear = ("STUCK" in before) and (after == "无")
+
+    # 手动查询：演示源应回 ACK(GET_DIAG) + 快照
+    win._query_diag()
+    ok_query = "应答 GET_DIAG -> OK" in win.log.toPlainText()
+
+    return ok_auto, ok_clear, ok_query
+
+
 def run():
     app = QApplication(sys.argv)
     print("界面字体      : %s" % M.apply_cjk_font(app))
@@ -207,6 +241,14 @@ def run():
     print("故障恢复显示  : %s" % ("OK" if ok_rc else "FAIL"))
     print("未知帧不致命  : %s" % ("OK" if ok_uk else "FAIL"))
     if not (ok_en and ok_cf and ok_rc and ok_uk):
+        ok = False
+
+    # ---- 第四段：Stage 7C-2 快照与查询（软件模拟）----
+    ok_auto, ok_clear, ok_query = check_snapshot_ui(win)
+    print("连接后自动查询: %s" % ("OK" if ok_auto else "FAIL"))
+    print("快照清除显示  : %s" % ("OK" if ok_clear else "FAIL"))
+    print("查询应答      : %s" % ("OK" if ok_query else "FAIL"))
+    if not (ok_auto and ok_clear and ok_query):
         ok = False
 
     print("RESULT:", "PASS" if ok else "FAIL")

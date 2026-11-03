@@ -125,10 +125,12 @@ class TestProtocolDocSync(unittest.TestCase):
 
         py_ids = sorted(k for k in dir(P)
                         if k.startswith("FAULT_ID_") and k != "FAULT_ID_NAMES")
-        self.assertEqual(py_ids, ["FAULT_ID_STUCK"],
-                         "protocol.py 里出现了 STUCK 以外的故障编号：%r" % py_ids)
-        self.assertEqual(set(P.FAULT_ID_NAMES), {P.FAULT_ID_STUCK},
+        # FAULT_ID_NONE(0) 是"无故障"的保留值，不是一种故障类型；真正登记的只有 STUCK
+        self.assertEqual(py_ids, ["FAULT_ID_NONE", "FAULT_ID_STUCK"],
+                         "protocol.py 里出现了 STUCK 以外的故障类型：%r" % py_ids)
+        self.assertEqual(set(P.FAULT_ID_NAMES), {P.FAULT_ID_NONE, P.FAULT_ID_STUCK},
                          "FAULT_ID_NAMES 表里登记了别的东西")
+        self.assertEqual(P.FAULT_ID_NONE, 0)
 
     def test_mask_matches_doc(self):
         self.assertEqual(self.fw["PROTO_FAULT_MASK_STUCK"], P.FAULT_MASK_STUCK)
@@ -146,7 +148,8 @@ class TestProtocolDocSync(unittest.TestCase):
         for m in re.finditer(r"0xAA\s*,\s*0x55(?:[\s\S]*?)\}\s*;", read_text(FAULT_C)):
             vals = [int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]{2})", m.group(0))]
             c_vectors.append(bytes(vals))
-        self.assertEqual(len(c_vectors), 3, "C 侧应有 3 组向量（确认/恢复/SET_DIAG）")
+        self.assertEqual(len(c_vectors), 6,
+                         "C 侧应有 6 组向量（确认/恢复/SET_DIAG/快照×2/GET_DIAG）")
 
         self.assertEqual(docs["确认"], c_vectors[0],
                          "文档里的确认示例帧与 C 侧契约向量不一致")
@@ -179,12 +182,37 @@ class TestProtocolDocSync(unittest.TestCase):
         self.assertEqual(P.T_SET_DIAG, 0x15)
         self.assertEqual(self.rows[P.T_SET_DIAG][0], "SET_DIAG")
 
+        self.assertEqual(self.fw["PROTO_T_GET_DIAG"], 0x16)
+        self.assertEqual(P.T_GET_DIAG, 0x16)
+        self.assertEqual(self.rows[P.T_GET_DIAG][0], "GET_DIAG")
+
     def test_event_codes_three_way(self):
         self.assertEqual(self.fw["PROTO_FAULT_EV_CONFIRM"], 1)
         self.assertEqual(self.fw["PROTO_FAULT_EV_RECOVER"], 2)
         self.assertEqual(P.FAULT_EV_CONFIRM, 1)
         self.assertEqual(P.FAULT_EV_RECOVER, 2)
         self.assertIn("1 = 确认，2 = 恢复", self.doc.replace("**", ""))
+
+    def test_get_diag_len_is_0_everywhere(self):
+        self.assertEqual(self.fw["PROTO_LEN_GET_DIAG"], 0, "固件里 GET_DIAG 长度不是 0")
+        self.assertEqual(len(P.build_get_diag(0)), 7, "LEN=0 的帧应是 5+0+2=7 字节")
+        self.assertIn(P.T_GET_DIAG, self.rows, "文档 §3.2 没有 GET_DIAG 行")
+        self.assertEqual(self.rows[P.T_GET_DIAG][1], 0, "文档里 GET_DIAG 的 LEN 列不是 0")
+        self.assertEqual(self.rows[P.T_GET_DIAG][0], "GET_DIAG")
+
+    def test_doc_snapshot_vectors(self):
+        """§4.10 的两组快照示例必须与 C 侧契约向量一致"""
+        snaps = {}
+        for m in re.finditer(r"快照\((有故障|无故障)\)：((?:[0-9A-F]{2} )+[0-9A-F]{2})", self.doc):
+            snaps[m.group(1)] = bytes.fromhex(m.group(2).replace(" ", ""))
+        self.assertEqual(sorted(snaps), ["无故障", "有故障"], "文档里应有两组快照示例帧")
+
+        c_vectors = []
+        for m in re.finditer(r"0xAA\s*,\s*0x55(?:[\s\S]*?)\}\s*;", read_text(FAULT_C)):
+            vals = [int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]{2})", m.group(0))]
+            c_vectors.append(bytes(vals))
+        self.assertEqual(snaps["有故障"], c_vectors[3], "快照(有故障) 与 C 侧不一致")
+        self.assertEqual(snaps["无故障"], c_vectors[4], "快照(无故障) 与 C 侧不一致")
 
     def test_old_frames_not_renumbered(self):
         """7C 不许动老帧的类型码与长度"""

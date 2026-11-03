@@ -31,6 +31,10 @@ FAULT_C = os.path.normpath(os.path.join(HERE, "..", "fw_tests", "test_fault.c"))
 VEC_CONFIRM_HEX = "AA 55 86 09 00 B8 0B 00 00 01 01 01 0C 00 F9 45"
 VEC_RECOVER_HEX = "AA 55 86 09 01 70 17 00 00 02 01 00 78 00 54 D2"
 VEC_SET_DIAG_HEX = "AA 55 15 01 02 01 51 62"
+# Stage 7C-2：快照（event=0）与查询命令也纳入契约
+VEC_SNAP_FAULT_HEX = "AA 55 86 09 05 40 1F 00 00 00 01 01 19 00 11 DE"
+VEC_SNAP_CLEAR_HEX = "AA 55 86 09 06 28 23 00 00 00 00 00 00 00 00 11"
+VEC_GET_DIAG_HEX = "AA 55 16 00 07 B8 4D"
 
 
 def hex_to_bytes(s: str) -> bytes:
@@ -54,15 +58,19 @@ class TestFaultContractVectors(unittest.TestCase):
     def setUpClass(cls):
         cls.c_vecs = read_c_vectors(FAULT_C)
 
-    def test_c_file_has_three_vectors(self):
-        self.assertEqual(len(self.c_vecs), 3,
-                         "期望 C 侧存在 3 组契约向量，实际 %d 组" % len(self.c_vecs))
+    def test_c_file_has_six_vectors(self):
+        self.assertEqual(len(self.c_vecs), 6,
+                         "期望 C 侧存在 6 组契约向量（确认/恢复/SET_DIAG/快照有故障/快照无故障/GET_DIAG），"
+                         "实际 %d 组" % len(self.c_vecs))
 
     def test_c_vectors_equal_python_vectors(self):
         """C 侧数组与 Python 侧 hex 必须逐字节相同（这条是跨语言的那一条）"""
         expect = [hex_to_bytes(VEC_CONFIRM_HEX),
                   hex_to_bytes(VEC_RECOVER_HEX),
-                  hex_to_bytes(VEC_SET_DIAG_HEX)]
+                  hex_to_bytes(VEC_SET_DIAG_HEX),
+                  hex_to_bytes(VEC_SNAP_FAULT_HEX),
+                  hex_to_bytes(VEC_SNAP_CLEAR_HEX),
+                  hex_to_bytes(VEC_GET_DIAG_HEX)]
         for i, (got, want) in enumerate(zip(self.c_vecs, expect)):
             self.assertEqual(got.hex(" ").upper(), want.hex(" ").upper(),
                              "第 %d 组契约向量两端不一致" % (i + 1))
@@ -131,6 +139,46 @@ class TestFaultContractVectors(unittest.TestCase):
         self.assertEqual(len(objs), 2)
         self.assertEqual(objs[0].event, P.FAULT_EV_CONFIRM)
         self.assertEqual(objs[1].event, P.FAULT_EV_RECOVER)
+
+
+    def test_parse_snapshot_with_fault(self):
+        f = P.FrameParser()
+        frames = f.feed(hex_to_bytes(VEC_SNAP_FAULT_HEX))
+        self.assertEqual(f.errors, 0)
+        obj = P.decode_many(frames)[0]
+        self.assertTrue(obj.is_snapshot, "event=0 必须被识别为快照")
+        self.assertEqual(obj.t_ms, 8000)
+        self.assertEqual(obj.fault_id, P.FAULT_ID_STUCK)
+        self.assertEqual(obj.active, 1)
+        self.assertEqual(obj.value, 25)
+        self.assertEqual(obj.event_name, "快照")
+        self.assertEqual(obj.text, "STUCK 卡死 快照")
+
+    def test_parse_snapshot_no_fault(self):
+        f = P.FrameParser()
+        frames = f.feed(hex_to_bytes(VEC_SNAP_CLEAR_HEX))
+        self.assertEqual(f.errors, 0)
+        obj = P.decode_many(frames)[0]
+        self.assertTrue(obj.is_snapshot)
+        self.assertEqual(obj.fault_id, 0, "无故障时 fault_id 必须是 0")
+        self.assertEqual(obj.active, 0, "无故障时 active 必须是 0")
+        self.assertEqual(obj.value, 0, "无故障时 value 必须是 0")
+        self.assertEqual(obj.fault_name, "无故障")
+        self.assertEqual(obj.active_names, "无")
+
+    def test_build_get_diag_bytes(self):
+        self.assertEqual(P.build_get_diag(7).hex(" ").upper(), VEC_GET_DIAG_HEX)
+        self.assertEqual(len(P.build_get_diag(0)), 7, "GET_DIAG 帧应为 7 字节（LEN=0）")
+        self.assertEqual(P.build_get_diag(0)[3], 0, "LEN 必须是 0")
+
+    def test_python_can_rebuild_snapshot_vectors(self):
+        """快照向量也要能由 Python 独立重构出来"""
+        p_fault = bytes([0x40, 0x1F, 0, 0,  0x00, 0x01, 0x01,  0x19, 0x00])
+        self.assertEqual(P.encode(P.T_FAULT, 0x05, p_fault).hex(" ").upper(),
+                         VEC_SNAP_FAULT_HEX)
+        p_clear = bytes([0x28, 0x23, 0, 0,  0x00, 0x00, 0x00,  0x00, 0x00])
+        self.assertEqual(P.encode(P.T_FAULT, 0x06, p_clear).hex(" ").upper(),
+                         VEC_SNAP_CLEAR_HEX)
 
 
 class TestFaultLocalRules(unittest.TestCase):

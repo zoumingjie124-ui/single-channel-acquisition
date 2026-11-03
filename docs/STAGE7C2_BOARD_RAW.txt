@@ -1,0 +1,58 @@
+port=COM5
+=== 阶段1：刚复位（active 应为 0），查一次 ===
+[  0.00s] ACK   seq=46  req=GET_DIAG result=OK
+[  0.00s] FAULT seq=47  t=23265ms  event=快照  id=无故障  mask=0x00  value=0
+
+=== 阶段2：使能诊断，等确认 ===
+[  1.51s] ACK   seq=199  req=SET_DIAG result=OK
+[  4.53s] FAULT seq=250  t=27791ms  event=确认  id=STUCK 卡死  mask=0x01  value=8
+
+=== 阶段3：有故障时再查一次 ===
+[  7.51s] ACK   seq=39  req=GET_DIAG result=OK
+[  7.51s] FAULT seq=40  t=30769ms  event=快照  id=STUCK 卡死  mask=0x01  value=12
+
+=== 阶段4：关闭串口（模拟断线），设备继续运行 ===
+PORT CLOSED at 9.01s
+解析错误=0
+本段收到 915 帧，SEQ 异常 0 个
+
+=== 阶段5：断线期间电位器被拧动，重连后立刻查一次 ===
+port=COM5  reopen at 23:15:51
+[ 0.01s] ACK   seq=111  req=GET_DIAG result=OK
+[ 0.01s] FAULT seq=112  event=快照  id=STUCK 卡死  mask=0x01  value=12
+解析错误=0
+
+判定：重连后快照 active=0x01 -> 设备已重新判定为卡死（恢复窗口已过）
+
+=== 阶段6：收尾，关闭诊断 ===
+   TXT: OK diag off
+   TXT: STAT t=86788ms n=8678 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=1 cmd=4/0 txd=0B
+   TXT: DIAG en=0 state=2 conf=1 span=10 blk=82 unev=0 mask=1 rep=1
+
+=== 阶段7：断线期间连续拧动 -> 重连立刻查（第二次尝试）===
+[ 0.01s] ACK   seq=151  req=GET_DIAG result=OK
+[ 0.01s] FAULT seq=152  event=快照  id=STUCK 卡死  mask=0x01  value=10
+
+=== 阶段8：紧接着再看内部状态（确认不是碰巧）===
+   TXT: STAT t=134627ms n=13462 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=2 cmd=6/0 txd=0B
+   TXT: DIAG en=1 state=2 conf=2 span=10 blk=69 unev=0 mask=1 rep=1
+
+解析错误=0
+结论：重连后快照 active=0x01 value=10 -> 设备仍是活动故障状态（窗口又过了）
+=== 阶段9：连续轮询 GET_DIAG 20 s，记录快照掩码变化 ===
+port=COM5  start 23:18:10
+[ 0.01s] 快照 mask=0x00 value=0  <-- 变化
+
+共收到 57 帧快照，掩码取值集合 = [0]
+出现过 active=0 的快照：是
+解析错误=0
+=== 阶段10：确认此刻状态（轮询结束后，输入应已静止）===
+T+0    STAT t=252827ms n=25282 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=54 cmd=63/0 txd=0B
+T+0    DIAG en=1 state=2 conf=4 span=10 blk=72 unev=0 mask=1 rep=1
+T+4s   STAT t=257830ms n=25782 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=54 cmd=63/0 txd=0B
+T+4s   DIAG en=1 state=2 conf=4 span=8 blk=67 unev=0 mask=1 rep=1
+
+=== 收尾：关闭诊断，回到默认状态 ===
+   OK diag off
+   STAT t=269288ms n=26928 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=54 cmd=63/0 txd=0B
+   DIAG en=0 state=2 conf=4 span=10 blk=42 unev=0 mask=1 rep=1

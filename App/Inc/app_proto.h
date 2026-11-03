@@ -40,6 +40,7 @@
 #define PROTO_T_RESET           0x13u   /* 清零统计 */
 #define PROTO_T_PING            0x14u   /* 心跳 */
 #define PROTO_T_SET_DIAG        0x15u   /* 使能 / 关闭故障诊断（Stage 7C） */
+#define PROTO_T_GET_DIAG        0x16u   /* 请求故障状态快照（Stage 7C-2） */
 
 /* ------------------------------ 载荷长度 ------------------------------ */
 #define PROTO_LEN_SAMPLE        10u     /* t_ms(4) raw(2) filt(2) level(1) seq8(1) */
@@ -49,9 +50,11 @@
 #define PROTO_LEN_BOOT          7u      /* fw_ver(2) rate(2) dma_buf(1) filter(1) decim(1) */
 #define PROTO_LEN_FAULT         9u      /* t_ms(4) event(1) fault_id(1) active(1) value(2) */
 #define PROTO_LEN_SET_DIAG      1u      /* enable(1) */
+#define PROTO_LEN_GET_DIAG      0u      /* 无载荷 */
 
 /* ------------------------- FAULT 载荷字段取值 ------------------------- */
-/* event：确认与恢复各上报一次，中间不重复发（见 app_fault.c） */
+/* event：0=状态快照（仅 GET_DIAG 应答）；1/2 是跃变事件，各上报一次 */
+#define PROTO_FAULT_EV_SNAPSHOT 0u
 #define PROTO_FAULT_EV_CONFIRM  1u
 #define PROTO_FAULT_EV_RECOVER  2u
 

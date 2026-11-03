@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
 
 from protocol import (
     ADC_VREF_MV,
+    FAULT_EV_SNAPSHOT,
     FAULT_ID_STUCK,
     FAULT_MASK_STUCK,
     LEVEL_NAMES,
@@ -54,6 +55,7 @@ from protocol import (
     T_BOOT,
     T_EVENT,
     T_FAULT,
+    T_GET_DIAG,
     T_GET_STAT,
     T_RESET,
     T_SAMPLE,
@@ -69,6 +71,7 @@ from protocol import (
     FrameParser,
     Sample,
     Stat,
+    build_get_diag,
     build_get_stat,
     build_reset,
     build_set_diag,
@@ -364,6 +367,9 @@ class MainWindow(QMainWindow):
         df.addRow("当前故障", self.lbl_fault)
         self.lbl_fault_last = QLabel("-")
         df.addRow("最近事件", self.lbl_fault_last)
+        self.btn_get_diag = QPushButton("查询故障状态")
+        self.btn_get_diag.clicked.connect(lambda: self._query_diag())
+        df.addRow(self.btn_get_diag)
         lay.addWidget(dg)
 
         row = QHBoxLayout()
@@ -439,6 +445,8 @@ class MainWindow(QMainWindow):
         self.lbl_conn.setText("已连接 %s" % port)
         self.lbl_conn.setStyleSheet("color:#2E7D32;font-weight:500;")
         self._log("已连接 %s" % port)
+        # Stage 7C-2：连接/重连成功后自动查一次故障状态，让界面与设备对齐
+        self._query_diag(auto=True)
 
     def _on_disconnected(self, msg):
         self.lbl_conn.setText("已断开")
@@ -457,6 +465,8 @@ class MainWindow(QMainWindow):
         self.lbl_conn.setText("演示模式（无硬件）")
         self.lbl_conn.setStyleSheet("color:#B26A00;font-weight:500;")
         self._log("演示模式：内置 100Hz 信号源，走的是一样的解析路径")
+        # 与真机一致：进入演示也自动查一次状态，顺便把这条路径跑到
+        self._query_diag(auto=True)
 
     def _feed_demo(self, data: bytes):
         self._on_frames(self.parser.feed(data))
@@ -518,6 +528,15 @@ class MainWindow(QMainWindow):
                 res = 0 if (len(payload) == 1 and payload[0] <= 1) else 1
                 self._on_frames(self.parser.feed(
                     encode(T_ACK, self.demo_src.next_frame_seq(), bytes([T_SET_DIAG, res]))))
+            elif msg_type == T_GET_DIAG:
+                res = 0 if len(payload) == 0 else 1
+                # 顺序与固件一致：先 ACK，再快照
+                self._on_frames(self.parser.feed(
+                    encode(T_ACK, self.demo_src.next_frame_seq(), bytes([T_GET_DIAG, res]))))
+                if res == 0:
+                    self._on_frames(self.parser.feed(
+                        encode(T_FAULT, self.demo_src.next_frame_seq(),
+                               struct.pack("<IBBBH", self.demo_src._t, 0, 0, 0, 0))))
 
     def _on_frames(self, frames):
         # 帧头 SEQ 缺口检测：设备所有帧（含 ACK/STAT/EVENT）共用一个逐帧 +1
@@ -611,18 +630,25 @@ class MainWindow(QMainWindow):
         self._log("应答 %s -> %s" % (name, a.result_name))
 
     def _on_fault(self, f: Fault):
+        # 快照(event=0) 是"当前状态基线"，不是一次新的确认/恢复事件：
+        # 它只覆盖本地状态，不写事件表、不显示成"故障确认"。
         self.fault_mask = f.active
+
         if f.active:
             names = [n for bit, n in ((FAULT_MASK_STUCK, "STUCK 卡死"),) if f.active & bit]
             self.lbl_fault.setText("、".join(names) if names else "0x%02X" % f.active)
             self.lbl_fault.setStyleSheet("color:#C62828;font-weight:500;")
         else:
-            self.lbl_fault.setText("无" if self.diag_enabled else "未使能")
+            self.lbl_fault.setText("无")
             self.lbl_fault.setStyleSheet("color:#2E7D32;font-weight:500;")
 
-        self.lbl_fault_last.setText("%d ms  %s  span=%d mV" % (f.t_ms, f.event_name, f.value))
-        self._log("故障%s：%s（t=%dms，span=%dmV，当前故障：%s）"
-                  % (f.event_name, f.fault_name, f.t_ms, f.value, f.active_names))
+        if f.is_snapshot:
+            self.lbl_fault_last.setText("%d ms  状态同步" % f.t_ms)
+            self._log("状态同步：当前故障 %s（t=%dms）" % (f.active_names, f.t_ms))
+        else:
+            self.lbl_fault_last.setText("%d ms  %s  span=%d mV" % (f.t_ms, f.event_name, f.value))
+            self._log("故障%s：%s（t=%dms，span=%dmV，当前故障：%s）"
+                      % (f.event_name, f.fault_name, f.t_ms, f.value, f.active_names))
 
     def _on_lines(self, lines):
         for line in lines:
@@ -660,6 +686,20 @@ class MainWindow(QMainWindow):
             self.lbl_fault.setText("未使能")
             self.lbl_fault.setStyleSheet("color:#616161;font-weight:500;")
         self._log("故障诊断：%s（等 ACK 确认）" % ("使能" if on else "关闭"))
+
+    def _query_diag(self, auto: bool = False):
+        """查询设备当前的故障状态（GET_DIAG）。
+
+        为什么连接后要自动查一次：设备里的故障状态是**驻留**的（关诊断也不清），
+        而上位机重连后本地什么都不知道。只靠"等下一次跃变"会一直显示旧状态。
+        未连接时不发——要求里明确"连接失败或未连接时不得反复发送查询"。
+        """
+        if (self.worker is None) and (self.demo_src is None):
+            if not auto:
+                self._log("未连接，无法查询故障状态")
+            return
+        self._send(build_get_diag(self._next_seq()))
+        self._log("查询故障状态%s" % ("（连接后自动）" if auto else ""))
 
     def _set_level(self, level):
         name = LEVEL_NAMES.get(level, "?")

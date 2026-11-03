@@ -100,6 +100,14 @@
    只有一个样本时 span 恒为 0，那是"没数据"不是"没变化"。 */
 #define APP_DIAG_MIN_BLOCK_SAMPLES      50u
 
+/* Stage 7C-2：故障状态帧提交失败后的最小重试间隔（ms）。
+   作用：发送环长期满时，不能每 10 ms 采样周期都去试一次（那会把主循环的
+   空闲时间全吃掉，也会在日志里刷屏）。100 ms 的依据是：
+   环容量 1024 B、100 Hz 下 16 B/帧 ≈ 1.6 KB/s，正常 640 ms 才能写满；
+   给 100 ms 已经比"正常排空一帧"快一个数量级，足够及时。
+   ⚠ 待确定：如果将来把上报帧率调高或环改小，这个值需要重新算。 */
+#define APP_FAULT_RETRY_MIN_MS          100u
+
 /* ------------------------------ 串口与协议 ------------------------------ */
 /* 发送环形缓冲：100Hz × 16B = 1600B/s，1024B 可缓冲 640ms，足够 */
 #define APP_TX_RING_SIZE        1024u
@@ -162,6 +170,10 @@
    MIN_BLOCK_SAMPLES 超过这个数 => 每个块都"样本不足" => 诊断永远不工作。 */
 #if (APP_DIAG_MIN_BLOCK_SAMPLES > ((APP_DIAG_BLOCK_MS * APP_SAMPLE_RATE_HZ) / 1000u))
 #error "APP_DIAG_MIN_BLOCK_SAMPLES exceeds max samples per block; diagnosis would never run"
+#endif
+/* 重试间隔必须明显大于采样周期，否则等于每样本重试一次 */
+#if (APP_FAULT_RETRY_MIN_MS < 10u)
+#error "APP_FAULT_RETRY_MIN_MS too small: retry would happen almost every sample"
 #endif
 
 #endif /* __APP_CONFIG_H */

@@ -38,9 +38,20 @@ static uint8_t cb_set_diag(uint8_t enable)
   return diag_ret;
 }
 
+/* Stage 7C-2：GET_DIAG 回调。真实实现只置"待发快照"标志，这里只记调用次数 */
+static int     getdiag_calls;
+static uint8_t getdiag_ret;
+
+static uint8_t cb_get_diag(void)
+{
+  getdiag_calls++;
+  return getdiag_ret;
+}
+
 static const app_cmd_ops_t s_ops =
 {
-  cb_set_thr, cb_set_led, cb_get_stat, cb_reset_stats, cb_ping, cb_set_diag, cb_text
+  cb_set_thr, cb_set_led, cb_get_stat, cb_reset_stats, cb_ping,
+  cb_set_diag, cb_get_diag, cb_text
 };
 
 static void cb_reset(void)
@@ -48,6 +59,8 @@ static void cb_reset(void)
   diag_calls = 0;
   diag_last_enable = 0xFFu;
   diag_ret = 1u;
+  getdiag_calls = 0;
+  getdiag_ret = 1u;
   led_calls = 0;
   stat_calls = 0;
 }
@@ -188,5 +201,59 @@ void test_cmd(void)
     feed_cmd(PROTO_T_GET_STAT, 0x1Au, (const uint8_t *)0, 0u, now); now += 10u;
     CHECK_EQ(stat_calls, 1);
     expect_ack(PROTO_T_GET_STAT, 0u);
+  }
+
+  /* ================= Stage 7C-2：GET_DIAG ================= */
+
+  SECTION("cmd: GET_DIAG len=0 合法 -> 回调触发，ACK OK");
+  {
+    cb_reset();
+    feed_cmd(PROTO_T_GET_DIAG, 0x20u, (const uint8_t *)0, 0u, now); now += 10u;
+    CHECK_EQ(getdiag_calls, 1);
+    expect_ack(PROTO_T_GET_DIAG, 0u);
+    /* 关键：app_cmd 自己绝不发 FAULT 帧——快照由 app_task 在主循环发，
+       所以 ACK 一定排在快照前面。这里捕获到的必须只有一帧 ACK。 */
+    CHECK_EQ(tx_cap_len, (uint16_t)(PROTO_HEADER_LEN + PROTO_LEN_ACK + PROTO_CRC_LEN));
+    CHECK_EQ(tx_cap_at(2), PROTO_T_ACK);
+  }
+
+  SECTION("cmd: GET_DIAG len=1 非法 -> 回调不触发，ACK PARAM");
+  {
+    uint8_t one = 0u;
+    cb_reset();
+    feed_cmd(PROTO_T_GET_DIAG, 0x21u, &one, 1u, now); now += 10u;
+    CHECK_EQ(getdiag_calls, 0);
+    expect_ack(PROTO_T_GET_DIAG, 1u);
+  }
+
+  SECTION("cmd: GET_DIAG len=2 非法 -> 回调不触发，ACK PARAM");
+  {
+    uint8_t two[2] = {0u, 0u};
+    cb_reset();
+    feed_cmd(PROTO_T_GET_DIAG, 0x22u, two, 2u, now); now += 10u;
+    CHECK_EQ(getdiag_calls, 0);
+    expect_ack(PROTO_T_GET_DIAG, 1u);
+  }
+
+  SECTION("cmd: GET_DIAG 回调拒绝 -> ACK PARAM");
+  {
+    cb_reset();
+    getdiag_ret = 0u;
+    feed_cmd(PROTO_T_GET_DIAG, 0x23u, (const uint8_t *)0, 0u, now); now += 10u;
+    CHECK_EQ(getdiag_calls, 1);
+    expect_ack(PROTO_T_GET_DIAG, 1u);
+  }
+
+  SECTION("cmd: 连续 3 次 GET_DIAG -> 3 个 ACK，各自独立应答");
+  {
+    int i;
+    cb_reset();
+    for (i = 0; i < 3; i++)
+    {
+      feed_cmd(PROTO_T_GET_DIAG, (uint8_t)(0x24u + i), (const uint8_t *)0, 0u, now);
+      now += 10u;
+      expect_ack(PROTO_T_GET_DIAG, 0u);
+    }
+    CHECK_EQ(getdiag_calls, 3);
   }
 }

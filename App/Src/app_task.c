@@ -49,7 +49,9 @@ typedef struct
   app_filter_t filter;
   app_alarm_t  alarm;
   app_diag_t   diag;      /* Stage 7B：故障诊断（默认关闭，见 app_config.h） */
-  app_fault_t  fault;     /* Stage 7C：诊断结论 -> FAULT 帧的上报登记表 */
+  app_fault_t  fault;     /* Stage 7C：诊断结论 -> FAULT 帧的状态登记表 */
+
+  uint8_t   diag_snap_req;   /* Stage 7C-2：收到 GET_DIAG，等主循环发快照 */
 
   uint8_t   led_forced;      /* 1 = 被 led 命令接管 */
   uint8_t   led_forced_on;
@@ -150,11 +152,23 @@ static void emit_stat(void)
 }
 
 /* app_fault 在 PC 上也要能编译，所以它不认 emit_frame，只认这个回调签名。
-   载荷字节由 app_fault_build_payload() 按协议布局填好，这里只负责发出去。 */
-static void fault_emit(const uint8_t *payload, uint8_t len, void *user)
+   返回 1 才表示"已提交到发送环"——app_fault 靠它决定要不要把 reported 拉平。
+   注意：这里用 proto_encode 而不是 emit_frame()，就是为了拿到 app_tx_write 的结果。 */
+static uint8_t fault_emit(const uint8_t *payload, uint8_t len, void *user)
 {
+  uint8_t  frame[PROTO_MAX_FRAME];
+  uint16_t n;
+  uint16_t wrote;
+
   (void)user;
-  emit_frame(PROTO_T_FAULT, payload, len);
+  n = proto_encode(PROTO_T_FAULT, app_task_next_frame_seq(), payload, len,
+                   frame, (uint16_t)sizeof(frame));
+  if (n == 0u)
+  {
+    return 0u;
+  }
+  wrote = app_tx_write(frame, n);
+  return (uint8_t)(wrote == n);
 }
 
 /* --------------------------- 命令回调实现 --------------------------- */
@@ -206,6 +220,16 @@ static uint8_t ctx_set_diag(uint8_t enable)
      关闭诊断不该让一个真实存在的故障"凭空恢复"（与 app_diag_set_enable 同理）。
      ACK 由 app_cmd 在本回调返回后统一发出，此时配置已经生效。 */
   app_diag_set_enable(&s_ctx.diag, (uint8_t)(enable != 0u));
+  return 1u;
+}
+
+static uint8_t ctx_get_diag(void)
+{
+  /* 只置标志，不发帧：ACK 由 app_cmd 在回调返回后统一发出，
+     快照必须排在 ACK 之后，所以交给主循环发（见 app_task_run 第 3.5 步）。
+     重复请求只会把标志再置一次——多次请求合并成一帧"最新状态"，
+     不会积压，也不影响每个请求各自的 ACK。 */
+  s_ctx.diag_snap_req = 1u;
   return 1u;
 }
 
@@ -308,15 +332,18 @@ static void on_text_line(const char *line)
             (unsigned long)usart_rx_restart_ok_count(),
             (unsigned long)usart_rx_restart_fail_count());
     /* 诊断观测行：只走文本通道。这就是 7B 报告里缺的"无上位机也能确认状态变化"的手段。
-       state: 0=CLEAR 1=CONFIRMING 2=ACTIVE 3=RECOVERING；mask 是已上报的故障位 */
-    tx_text("DIAG en=%u state=%u conf=%lu span=%u blk=%u unev=%lu mask=%u\r\n",
+       state: 0=CLEAR 1=CONFIRMING 2=ACTIVE 3=RECOVERING
+       mask = 设备当前真实状态；rep = 已提交到发送环的状态。
+       mask != rep 就表示"欠发送"，正在等队列空出来。 */
+    tx_text("DIAG en=%u state=%u conf=%lu span=%u blk=%u unev=%lu mask=%u rep=%u\r\n",
             (unsigned)s_ctx.diag.enable,
             (unsigned)app_diag_state(&s_ctx.diag),
             (unsigned long)app_diag_confirm_count(&s_ctx.diag),
             (unsigned)app_diag_last_span(&s_ctx.diag),
             (unsigned)app_diag_block_samples(&s_ctx.diag),
             (unsigned long)app_diag_uneval_count(&s_ctx.diag),
-            (unsigned)app_fault_active_mask(&s_ctx.fault));
+            (unsigned)app_fault_active_mask(&s_ctx.fault),
+            (unsigned)app_fault_reported_mask(&s_ctx.fault));
     return;
   }
 
@@ -437,6 +464,7 @@ static const app_cmd_ops_t s_ops =
   ctx_reset_stats,
   ctx_ping,
   ctx_set_diag,
+  ctx_get_diag,
   on_text_line
 };
 
@@ -451,13 +479,12 @@ static void process_sample(uint16_t raw)
      所以顺序不影响滤波与告警的结果。enable 为 0 时函数体内两次判断即返回。 */
   app_diag_update(&s_ctx.diag, mv_raw, s_ctx.tick_ms);
 
-  /* Stage 7C：把诊断结论送进上报登记表。每样本都调，但 app_fault 内部只在
-     "确认/恢复"两个跃变各发一帧，ACTIVE 期间与抖动都不会重复上报。
-     观测量用最近结算块的 span（mV），正好是卡死判据本身，便于上位机核对。 */
-  (void)app_fault_update(&s_ctx.fault, APP_FAULT_ID_STUCK,
-                         app_diag_is_active(&s_ctx.diag),
-                         s_ctx.tick_ms, app_diag_last_span(&s_ctx.diag),
-                         fault_emit, 0);
+  /* Stage 7C：把诊断结论登记进状态表。**这里只登记，不发帧**——
+     发帧由主循环的 app_fault_service() 统一做，因为要判断队列空间与节流，
+     放在每样本的路径上会把 100 Hz 的预算吃掉。 */
+  app_fault_set_state(&s_ctx.fault, APP_FAULT_ID_STUCK,
+                      app_diag_is_active(&s_ctx.diag),
+                      app_diag_last_span(&s_ctx.diag));
 
   s_ctx.samples++;
   s_ctx.sample_seq++;
@@ -532,7 +559,8 @@ void app_task_init(void)
   app_filter_init(&s_ctx.filter);
   app_alarm_init(&s_ctx.alarm, APP_THR_WARN_MV, APP_THR_CRIT_MV);
   app_diag_init(&s_ctx.diag);      /* 默认关闭；打开前需先标定阈值 */
-  app_fault_init(&s_ctx.fault);    /* 上报登记表清空：开机时没有任何已上报故障 */
+  app_fault_init(&s_ctx.fault);    /* 状态登记表清空：开机时没有任何已提交的故障 */
+  s_ctx.diag_snap_req = 0u;
   app_measure_init();
   app_cmd_init(&s_ops);
 
@@ -555,6 +583,28 @@ void app_task_run(void)
       break;
     }
     process_sample(raw);
+  }
+
+  /* 2.5 故障状态提交 + 2.6 待发快照。
+        两者共用一个"发送环装得下最坏一帧"的判断，而且都在**取帧序号之前**判断：
+        先取号再发现写不进去，会白烧一个序号，上位机那边就记一次"整帧丢失"。
+        用 PROTO_MAX_FRAME（47B）当余量而不是实际帧长（16B），是因为 service()
+        刚刚可能已经写掉一帧，留下的 31B 余量仍够快照用。 */
+  {
+    uint16_t free_b = (uint16_t)(APP_TX_RING_SIZE - 1u - app_tx_pending());
+    uint8_t  room   = (uint8_t)(free_b >= (uint16_t)PROTO_MAX_FRAME);
+
+    (void)app_fault_service(&s_ctx.fault, s_ctx.tick_ms, room, fault_emit, 0);
+
+    if ((s_ctx.diag_snap_req != 0u) && (room != 0u))
+    {
+      uint8_t p[PROTO_LEN_FAULT];
+
+      s_ctx.diag_snap_req = 0u;
+      /* 在这里才读 active —— 快照的内容不能比排在它前面的帧更旧 */
+      (void)app_fault_build_snapshot(&s_ctx.fault, p, s_ctx.tick_ms);
+      emit_frame(PROTO_T_FAULT, p, PROTO_LEN_FAULT);
+    }
   }
 
   /* 3. 按键：主动推送一次统计帧，上位机立即刷新面板 */
