@@ -218,3 +218,49 @@ O5  读数漂移           ______ mV
 
 > 填完记得把 `docs/TEST_INVENTORY.md` §5 的 **R3（8 小时连续运行）** 状态改成"已关闭"或"部分关闭"，
 > 并写明关闭依据。**不要只改 README 不改清单**——两份文件必须同步。
+
+---
+
+## 9. 电源设置：测试前修改、测完必须还原
+
+1 小时 / 8 小时长跑前必须关掉睡眠，否则数据会假干净（原因见 `TEST_REPORT` §17.3）。
+**这些是持久修改，测完一定要还原**，否则笔记本会一直不睡、电池耗光。
+
+### 9.1 测试前（把电源改成“从不”）
+
+```bat
+powercfg -change -standby-timeout-ac 0
+powercfg -change -standby-timeout-dc 0
+powercfg -change -hibernate-timeout-ac 0
+powercfg -change -hibernate-timeout-dc 0
+powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+powercfg -setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+powercfg -setactive SCHEME_CURRENT
+```
+
+（第 5–6 行是“USB 选择性暂停”，GUID 是固定的，别改。）
+
+### 9.2 测完还原（2026-11-03 那台机器的原始值）
+
+```bat
+powercfg -change -standby-timeout-ac 15
+powercfg -change -standby-timeout-dc 10
+powercfg -change -hibernate-timeout-ac 180
+powercfg -change -hibernate-timeout-dc 180
+powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1
+powercfg -setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1
+powercfg -setactive SCHEME_CURRENT
+```
+
+### 9.3 核对有没有还原成功
+
+```bat
+powercfg -q SCHEME_CURRENT SUB_SLEEP STANDBYIDLE
+powercfg -q SCHEME_CURRENT SUB_SLEEP HIBERNATEIDLE
+```
+
+`当前交流电源设置索引` 应看到 `0x00000384`（=900 s，睡眠 15 分钟）与 `0x00002a30`（=10800 s，休眠 3 小时）。
+USB 那项应看到 `0x00000001`（=启用）。
+
+> 提醒：在 Git Bash 里给 `powercfg` 和 `shutdown` 传参数要加 `MSYS_NO_PATHCONV=1`，
+> 否则 `/s`、`/getactivescheme` 这类参数会被 MSYS 当成 Windows 路径改写，命令会直接打印帮助而不执行。
