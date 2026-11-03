@@ -187,6 +187,6 @@ Program Size: Code=22468  RO-data=1076  RW-data=148  ZI-data=4972
 
 | 项 | 值 |
 |---|---|
-| 提交 | 见本轮 commit（`feat(diag): Stage 7C-2 ...`） |
+| 提交 | **`035ef1a`** — `feat(diag): Stage 7C-2 GET_DIAG 状态快照 + TX 提交失败恢复` |
 | 父提交 | `6b3632a`（协议约束审计） |
 | 分支 | `main` |
