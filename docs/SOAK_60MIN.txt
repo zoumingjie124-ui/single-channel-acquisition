@@ -34,3 +34,45 @@ port=COM6  duration=60 min  开始 2026-11-03 12:06:13
 [ 1980s] SAMPLE 198026(+6001 ) STAT 1981(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
 [ 2040s] SAMPLE 204027(+6001 ) STAT 2041(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
 [ 2100s] SAMPLE 210028(+6001 ) STAT 2101(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2160s] SAMPLE 216029(+6001 ) STAT 2161(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2220s] SAMPLE 222030(+6001 ) STAT 2221(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2280s] SAMPLE 228030(+6000 ) STAT 2281(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2340s] SAMPLE 234031(+6001 ) STAT 2341(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2400s] SAMPLE 240032(+6001 ) STAT 2401(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2460s] SAMPLE 246033(+6001 ) STAT 2461(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2520s] SAMPLE 252034(+6001 ) STAT 2521(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2580s] SAMPLE 258034(+6000 ) STAT 2581(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2640s] SAMPLE 264035(+6001 ) STAT 2641(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2700s] SAMPLE 270036(+6001 ) STAT 2701(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2760s] SAMPLE 276037(+6001 ) STAT 2761(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2820s] SAMPLE 282037(+6000 ) STAT 2821(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2880s] SAMPLE 288038(+6001 ) STAT 2881(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2940s] SAMPLE 294039(+6001 ) STAT 2941(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3000s] SAMPLE 300040(+6001 ) STAT 3001(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3060s] SAMPLE 306040(+6000 ) STAT 3061(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3120s] SAMPLE 312041(+6001 ) STAT 3121(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3180s] SAMPLE 318042(+6001 ) STAT 3181(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3240s] SAMPLE 324043(+6001 ) STAT 3241(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3300s] SAMPLE 330044(+6001 ) STAT 3301(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3360s] SAMPLE 336045(+6001 ) STAT 3361(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3420s] SAMPLE 342045(+6000 ) STAT 3421(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3480s] SAMPLE 348046(+6001 ) STAT 3481(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 3540s] SAMPLE 354047(+6001 ) STAT 3541(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+
+===== 合计（3600.0 秒）=====
+收到字节      : 6279243  (1744.2 B/s)
+SAMPLE 帧     : 360047  (100.01 Hz)
+STAT 帧       : 3601  (1.00 Hz，设计 1.00 Hz)
+EVENT 帧      : 0
+drops         : 0   (设备端采样环溢出，0 才算不丢点)
+frame_err     : 0   (CRC/格式错误)
+adc_err       : 0
+uart_err      : 0
+rx_err        : 0
+状态切换      : 0
+设备运行时间  : 3974000 ms
+seq8 缺口     : 0   (样本级)
+整帧丢失      : 0   (帧级)
+解析错误      : 0
+BOOT 帧       : 0   (0 表示中途没有复位)
+链路中断次数  : 0
