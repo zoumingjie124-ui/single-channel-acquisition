@@ -154,14 +154,38 @@ SEQ 不连续才能暴露后者。两者互补，缺一不可。
 
 ```
 help                 命令列表
-stat                 打印统计（含 cmd/txd_B，同时推送 STAT 帧）
+stat                 打印统计（含 cmd/txd_B），同时推送 STAT 帧
 thr <warn> <crit>    改阈值，单位 mV
 led on|off           控制 LED
 reset                清零所有计数（同时推送 STAT 帧）
 ```
 
+`stat` 会在两行内输出：
+
+```
+STAT t=...ms n=... drop=... adc=... uart=... rxf=... frm=... chg=... cmd=ok/err txd=...B
+ERRSRC ore=... fe=... ne=... pe=... pto=... rxrst=ok/fail
+```
+
+- `ERRSRC` 是**错误分类**，只走文本通道，**二进制 STAT 帧格式不变**（仍是 37 字节）；
+- `pto` = 半截帧超时复位次数（`APP_RX_FRAME_TIMEOUT_MS`）；
+- `rxrst=ok/fail` = 主循环 RX 重挂守护的成功/失败次数。
+
 用途：没有上位机时用串口助手手敲，排查硬件问题最快。
 上位机也会把这些行显示在"日志 / 文本通道"里。
+
+### 5.1 仅调试构建才有的命令（`APP_DEBUG_INJECT = 1`）
+
+正式版（`APP_DEBUG_INJECT = 0`）**不编入**这三个命令，键入会得到 `ERR unknown command`：
+
+| 命令 | 作用 | 用途 |
+|---|---|---|
+| `adcinject` | 只置一次"ADC 错误"标志（`app_measure_on_error()`），不碰硬件 | Stage 1 恢复链路验证 |
+| `oreinject` | 停接收 30 ms 攒字节制造**真实 ORE**，再重挂；返回 `saw_ore=0/1` | Stage 3 ORE 验证 |
+| `rxstop` | 停掉接收且不重挂（等价于"某次重挂失败后"的状态） | Stage 3 加固 B 验证 |
+
+> 这三个命令的存在会改变固件尺寸（Release `21208` → Debug 约 `21792`），
+> **板上长期运行的一定要是 `APP_DEBUG_INJECT = 0` 的版本**。
 
 ---
 
@@ -188,10 +212,15 @@ reset                清零所有计数（同时推送 STAT 帧）
 | 收到坏 CRC | 丢弃该帧，`frame_err++`，从下一字节重新找帧头 | 计解析错误，不显示脏数据 |
 | 帧头后字节不是 0x55 | 重新同步，`frame_err++` | 同上 |
 | LEN > 40 | 丢弃，重新同步 | 同上 |
-| 串口 ORE 溢出 | 清标志、`uart_err++`、重挂接收 | 表现为序号缺口 → 告警 |
-| 接收重新武装失败 | `rx_err++` | 长时间无数据 → 提示断开 |
+| **半截帧**（收了帧头没收完，之后没字节了） | 超过 `APP_RX_FRAME_TIMEOUT_MS`（**50 ms**）无新字节 → 复位解析器，`pto++`；**`frame_err` 不变**（不是坏帧，是不完整帧） | 无感（不会产生脏数据） |
+| 串口 ORE 溢出 | 错误回调清 ORE 标志、`uart_err++`、重挂接收。**实测补充**：若 DMA 正在收，取走 DR 的同时 ORE 就被清了，错误中断来不及执行，此时不计数也不影响链路 | 表现为序号缺口 → 告警 |
+| 接收重新武装失败（ISR 内） | `s_rx_fail++`（计入 STAT 的 `rx_err`） | 长时间无数据 → 提示断开 |
+| **接收长时间没在跑**（重挂失败 / 被 abort） | 主循环守护每轮查 `huart1.RxState`，不是 `BUSY_RX` 就重挂，**限速 200 ms**；成功打 `[rec] uart rx restarted`，失败打 `[rec] uart rx restart failed, retry in 200ms` | 同上 |
 | 整帧丢失（噪声/断开） | 无法感知 | **靠 SEQ 跳变发现** |
 | 上位机断开 | 继续采样，帧被丢弃（发送环满则整包丢弃并计 `tx_drop_bytes`） | 界面提示断开，数据保留，可重连 |
+
+> 上面两条加粗的是 Stage 3 加固后新增的行为，实测数据见 `TEST_REPORT` §14.1。
+> **尚未验证**：`usart_start_rx()` 真正返回 `HAL_BUSY` 时守护的表现（风险 R1）。
 
 ---
 
