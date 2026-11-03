@@ -209,6 +209,11 @@ C 类再细分三档，强度递减：
 
 ## 6. 复跑入口（按类型）
 
+> **下面的 `COM5` / `COM6` 是历史记录里的值，不要照抄。** 这块 CH340 没有 USB 序列号
+> （`hwid` 的 `SER=` 为空），Windows 按物理口 + 枚举顺序分配，**同一块板会换号，烧录后也会换**。
+> 复跑前先确认：`python -c "import serial.tools.list_ports as lp; print([p.device for p in lp.comports()])"`
+> 各工具的端口→时间对照见 `README.md` §5.1。
+
 ```bat
 :: A 类 —— 不需要板子
 cd host      && python -m unittest discover -s tests -v

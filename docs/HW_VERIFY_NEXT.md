@@ -131,9 +131,10 @@
 
 ### H3.3 步骤
 
-1. 先跑 **1 h**：`SET_DIAG 1` → 确认出现 1 帧确认 → 保持不动 → `soak.py 60 COM6`；
+1. 先跑 **1 h**：`SET_DIAG 1` → 确认出现 1 帧确认 → 保持不动 → `soak.py 60 <端口>`；
+   （**端口先查再填**：这块 CH340 会换号，烧录后尤其会变，见 `README.md` §5.1）
 2. 中途每 5 min 记一次 `stat` 的 `DIAG` 行（`en/state/conf/span/mask/rep`）；
-3. 1 h 通过后再起 **8 h**（`soak.py 480 COM6`），每 30 min 打点；
+3. 1 h 通过后再起 **8 h**（`soak.py 480 <端口>`），每 30 min 打点；
 4. 记录格式沿用 `docs/SOAK_PLAN.md` 的表 A/表 B 与 H1–H12 门槛。
 
 ### H3.4 通过标准
