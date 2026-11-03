@@ -700,3 +700,29 @@ B 组 6 项：单次恢复 152 ms、连续 3 次全恢复、50 ms 内两次恢�
 尺寸：Release **20876 → 21208**（+332 B，RW 124 → 148）；Debug 21792。
 NOT TESTED：8 小时长跑、真实 HAL 返回 BUSY 的重挂失败、其他超时参数、GUI 长时联调。
 
+## 15. 阶段四：固件 C 模块单元测试（2026-11-03 09:27–09:30）
+
+完整报告 `docs/STAGE4_C_UNIT_TESTS.md`；原始输出 `docs/FW_TESTS_RAW.txt`；测试源码 `fw_tests/`。
+
+**关键点：编译的是仓库里的真实固件源码**（`app_proto.c` / `app_alarm.c` / `app_filter.c`），
+不是复制、也不是用 Python 重写一份逻辑。工具链 `gcc (tdm64-1) 4.9.2`，
+参数 `-std=c99 -Wall -Wextra -Werror -O2`，**零告警通过**。
+
+| 模块 | 覆盖重点 | 判定 |
+|---|---|---|
+| `app_proto.c` | CRC 标准向量 0x29B1、组帧 17/40/41 边界、8 个解析状态、CRC 错不回调、LEN 越界、`AA AA 55` 重同步、半截帧现状 | **PASS** |
+| `app_alarm.c` | 3 次去抖、相邻跳转、滞回边界（2350 / 2349、2950 / 2949）、阈值校验含 `warn=65500` 回绕回归、阈值变更清计数、NULL | **PASS** |
+| `app_filter.c` | 启动部分窗、满窗 450、覆盖滑窗 550/650、8×65535 不溢出、阶跃、40 点规格比对、NULL、count 饱和 | **PASS** |
+
+```
+断言 167 项，失败 0 项  → RESULT: PASS
+```
+
+第一版有 4 个 FAIL，**全部是测试自身写错**（CRC 期望值凭印象填成 0xF4C3；`feed()` 返回最后一字节的结果，
+我多喂一字节把 ERROR 覆盖成 NONE）。修正测试后全过，固件代码未改。
+
+本轮**无固件改动**（`git diff HEAD -- App Core` 为空），板上仍是 Release `Code=21208`。
+
+未覆盖：`app_measure.c` / `app_tx.c` / `app_cmd.c` / `app_task.c`（强依赖 HAL，需打桩，按规矩不擅自改架构）。
+与 Python 那 28 项的分工：Python 测上位机与协议一致性，C 测试测**设备端真正执行的那份代码**，互不替代。
+

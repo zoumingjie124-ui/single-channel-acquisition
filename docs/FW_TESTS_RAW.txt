@@ -1,0 +1,85 @@
+================================================================
+Stage 4  固件 C 单元测试 — 原始输出
+================================================================
+时间    : 2026-11-03 09:29:50
+编译器  : gcc.exe (tdm64-1) 4.9.2
+工作目录: fw_tests/
+
+编译命令:
+  gcc -std=c99 -Wall -Wextra -Werror -O2 -I../App/Inc -I. \
+      main.c test_proto.c test_alarm.c test_filter.c \
+      ../App/Src/app_proto.c ../App/Src/app_alarm.c ../App/Src/app_filter.c \
+      -o fw_tests.exe
+
+被测源码（仓库中的真实文件，未复制）:
+  ../App/Src/app_proto.c           4922 bytes
+  ../App/Src/app_alarm.c           3106 bytes
+  ../App/Src/app_filter.c          2203 bytes
+
+运行输出:
+----------------------------------------------------------------
+============================================================
+固件纯逻辑单元测试（GCC / PC）
+被测：app_proto.c  app_alarm.c  app_filter.c
+============================================================
+
+[proto: CRC16 已知向量]
+
+[proto: 组帧长度与边界]
+
+[proto: 编码后解析回来]
+
+[proto: CRC 错误]
+
+[proto: LEN 越界]
+
+[proto: 帧头错误 / 连续 0xAA / 垃圾前缀]
+
+[proto: 连续多帧]
+
+[proto: 半截帧（记录现状，超时复位在 app_cmd 层）]
+
+[alarm: 初始化]
+
+[alarm: 正常区保持]
+
+[alarm: 进入 WARN 需连续 3 次（APP_ALARM_DEBOUNCE_CNT）]
+
+[alarm: 抖动会清零计数]
+
+[alarm: 只允许相邻级别跳转]
+
+[alarm: WARN -> NORMAL 必须低于 warn-hyst]
+
+[alarm: CRIT -> WARN 必须低于 crit-hyst，且只能退一级]
+
+[alarm: set_thresholds 合法性]
+
+[alarm: NULL 保护]
+
+[alarm: 级别名称]
+
+[filter: 初始化]
+
+[filter: 启动阶段按已填个数平均]
+
+[filter: 满窗平均]
+
+[filter: 第 9 个点开始覆盖最旧值]
+
+[filter: 满量程 65535 不溢出]
+
+[filter: 限幅关闭时阶跃原样进入窗口]
+
+[filter: 40 点伪随机序列 vs 规格期望值]
+
+[filter: NULL 保护]
+
+[filter: count 饱和于 DEPTH]
+
+============================================================
+断言 167 项，失败 0 项
+RESULT: PASS
+============================================================
+----------------------------------------------------------------
+退出码: 0

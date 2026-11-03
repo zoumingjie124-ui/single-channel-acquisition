@@ -37,3 +37,8 @@ host/capture_*.csv
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# PC 端 C 单元测试产物
+fw_tests/*.exe
+fw_tests/*.o
+fw_tests/*.obj
