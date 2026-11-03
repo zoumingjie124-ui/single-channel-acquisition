@@ -864,3 +864,42 @@ PC 侧已改为**从不睡眠 / 从不休眠 / 关闭 USB 选择性暂停**（�
 | 编译 | `Code=22468 RO=1076 RW=148 ZI=4972`，0 Error 0 Warning（Code +264，ZI +16） |
 | 板级 | ACK 先于快照（seq 46→47、39→40）；无故障/有故障快照字段正确；断线后快照给出真相；57 帧 `active=0` 快照 |
 | 未验证 | TX 环真满时的重试与节流（仅 C 单测模拟）；多故障快照（仅白盒单测） |
+
+---
+
+## 19. 阶段 7C-2 收尾：证据等级与未验证清单（2026-11-03 23:2x）
+
+本轮**只做收尾**：更新文档、重跑回归、出验收报告，**没有新增功能、没有改固件**。
+
+### 19.1 七项未验证事项的证据等级
+
+| 项目 | 当前验证情况 | 状态 |
+|---|---|---|
+| TX 环真实满载后的重试 | 只有 C 单测模拟 `emit` 返回 0，未在板上制造真实环满 | **UNIT PASS / NOT TESTED** |
+| 100 ms 重试节流 | C 单元测试通过，未做真实板级满载验证 | **UNIT PASS** |
+| 多故障快照 | 只有白盒单测，目前固件只登记 STUCK 一种故障 | **UNIT PASS** |
+| 队列检查与写入并发 | 已确认 ACK、FAULT 均在主循环入队，无 ISR 入队生产者 | **CODE REVIEW PASS** |
+| 真实传感器诊断 | 未测试 | **NOT TESTED** |
+| 诊断 1h / 8h 长期运行 | 未测试 | **NOT TESTED** |
+| GUI 按钮连接真实开发板 | 未测试 | **NOT TESTED** |
+
+> 登记为风险 R15–R21，见 `docs/TEST_INVENTORY.md` §5。
+> **`UNIT PASS` 与 `CODE REVIEW PASS` 都不是板级证据，不得写成"板级 PASS"。**
+
+### 19.2 本轮回归（全部重跑，非引用旧结果）
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 固件 C 单测 | `gcc -std=c99 -Wall -Wextra -Werror -O2`（真实源码） | **1041 项断言，0 失败，PASS** |
+| 上位机单测 | `python -m unittest discover -s tests` | **72 项 OK** |
+| 界面离屏冒烟 | `QT_QPA_PLATFORM=offscreen python tests/gui_smoke.py` | **PASS**（10 项联动断言含 3 项故障/快照） |
+| Release 编译 | `UV4 -r DataAcq.uvprojx` | `Code=22468 RO=1076 RW=148 ZI=4972`，**0 Error 0 Warning** |
+
+各处 0 告警；`-Wall -Wextra -Werror` 下无一处需要豁免。
+
+### 19.3 协议文档补充
+
+`PROTOCOL.md` 新增 **§4.8.1 上报语义与发送失败处理**，把此前散落在设计文档与代码注释里的四件事
+写进协议正文：`reported` 的定义（已入队 ≠ 对端收到）、队列满时不烧 SEQ / 不更新 reported、
+100 ms 节流、**允许合并中间边沿且恢复后只提交最新 `active`**；并明确
+"实时事件 vs 状态快照"的分工与"快照不用于恢复历史事件"。

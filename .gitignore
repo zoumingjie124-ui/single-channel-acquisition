@@ -42,3 +42,7 @@ desktop.ini
 fw_tests/*.exe
 fw_tests/*.o
 fw_tests/*.obj
+
+# 在 host/ 目录下跑 soak.py 等工具时误落到 cwd 的临时日志
+# （正确输出目录是仓库根的 docs/）
+host/docs/
