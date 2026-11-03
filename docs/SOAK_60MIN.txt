@@ -1,0 +1,36 @@
+port=COM6  duration=60 min  开始 2026-11-03 12:06:13
+[   60s] SAMPLE 6001 (+6001 ) STAT 60 (+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  120s] SAMPLE 12001(+6000 ) STAT 120(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  180s] SAMPLE 18002(+6001 ) STAT 180(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  240s] SAMPLE 24003(+6001 ) STAT 240(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  300s] SAMPLE 30004(+6001 ) STAT 300(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  360s] SAMPLE 36005(+6001 ) STAT 360(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  420s] SAMPLE 42005(+6000 ) STAT 420(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  480s] SAMPLE 48006(+6001 ) STAT 480(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  540s] SAMPLE 54007(+6001 ) STAT 540(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  600s] SAMPLE 60008(+6001 ) STAT 600(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  660s] SAMPLE 66009(+6001 ) STAT 660(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  720s] SAMPLE 72009(+6000 ) STAT 720(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  780s] SAMPLE 78010(+6001 ) STAT 780(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  840s] SAMPLE 84011(+6001 ) STAT 840(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  900s] SAMPLE 90012(+6001 ) STAT 900(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[  960s] SAMPLE 96013(+6001 ) STAT 960(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1020s] SAMPLE 102013(+6000 ) STAT 1020(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1080s] SAMPLE 108014(+6001 ) STAT 1080(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1140s] SAMPLE 114015(+6001 ) STAT 1140(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1200s] SAMPLE 120016(+6001 ) STAT 1200(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1260s] SAMPLE 126017(+6001 ) STAT 1260(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1320s] SAMPLE 132017(+6000 ) STAT 1320(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1380s] SAMPLE 138018(+6001 ) STAT 1380(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1440s] SAMPLE 144019(+6001 ) STAT 1440(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1500s] SAMPLE 150020(+6001 ) STAT 1500(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1560s] SAMPLE 156020(+6000 ) STAT 1560(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1620s] SAMPLE 162022(+6002 ) STAT 1621(+61 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1680s] SAMPLE 168022(+6000 ) STAT 1681(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1740s] SAMPLE 174023(+6001 ) STAT 1741(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1800s] SAMPLE 180024(+6001 ) STAT 1801(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1860s] SAMPLE 186025(+6001 ) STAT 1861(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1920s] SAMPLE 192025(+6000 ) STAT 1921(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 1980s] SAMPLE 198026(+6001 ) STAT 1981(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2040s] SAMPLE 204027(+6001 ) STAT 2041(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
+[ 2100s] SAMPLE 210028(+6001 ) STAT 2101(+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=0   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0
