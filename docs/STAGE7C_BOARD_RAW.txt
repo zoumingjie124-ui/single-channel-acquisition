@@ -1,0 +1,78 @@
+=== 阶段1：基准（诊断未使能）===
+[ 0.24s] STAT
+[ 1.24s] STAT
+[ 2.24s] STAT
+3 s 内 FAULT 帧数 = 0（应为 0）
+      TXT: STAT t=16774ms n=1677 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=0/0 txd=0B
+      TXT: ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      TXT: DIAG en=0 state=0 conf=0 span=0 blk=0 unev=0 mask=0
+
+=== 阶段2：SET_DIAG(enable=1)，然后保持输入不动 ===
+[ 4.02s] ACK req=SET_DIAG result=OK
+[ 4.24s] STAT
+[ 5.24s] STAT
+[ 6.24s] STAT
+[ 7.04s] FAULT t=20811ms event=确认 id=STUCK 卡死 mask=0x01 value=9mV  (FAULT)
+[ 7.24s] STAT
+[ 8.23s] STAT
+[ 9.24s] STAT
+[10.23s] STAT
+[11.24s] STAT
+使能后 8 s 内 FAULT 帧数 = 1
+首个 FAULT 距使能：0.00 s
+      TXT: STAT t=25789ms n=2578 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=1/0 txd=0B
+      TXT: ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      TXT: DIAG en=1 state=2 conf=1 span=9 blk=93 unev=0 mask=1
+
+原始解析错误 = 0
+
+=== 阶段3：非法参数 ===
+[ 0.01s] ACK req=SET_DIAG result=参数错误
+  enable=2 -> ACK 参数错误（应参数错误），期间 FAULT 0 帧
+[ 1.21s] ACK req=SET_DIAG result=参数错误
+  LEN=2    -> ACK 参数错误（应参数错误）
+      TXT: ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      TXT: DIAG en=1 state=2 conf=1 span=9 blk=21 unev=0 mask=1
+  说明：以上两条都必须在进入回调前被拒，DIAG en 应仍为 1
+
+=== 阶段4：关闭诊断，掩码不应被清 ===
+[ 3.23s] ACK req=SET_DIAG result=OK
+  enable=0 -> ACK OK，期间 FAULT 0 帧（关闭不该产生恢复帧）
+      TXT: ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      TXT: DIAG en=0 state=2 conf=1 span=11 blk=1 unev=0 mask=1
+
+=== 阶段5：重新使能（状态仍是 ACTIVE，不应重复上报）===
+[ 5.26s] ACK req=SET_DIAG result=OK
+  重新使能后 3.5 s 内 FAULT 0 帧（应为 0：故障没消失，不该重复确认）
+      TXT: ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      TXT: DIAG en=1 state=2 conf=1 span=9 blk=48 unev=0 mask=1
+解析错误=0
+port=COM6  duration=45s  开始 19:47:58
+[  5.00s]   TXT STAT t=68758ms n=6875 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=3/2 txd=0B
+[  5.00s]   TXT DIAG en=1 state=2 conf=1 span=9 blk=46 unev=0 mask=1
+[ 10.00s]   TXT STAT t=73749ms n=7374 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=3/2 txd=0B
+[ 10.00s]   TXT DIAG en=1 state=2 conf=1 span=9 blk=40 unev=0 mask=1
+[ 15.00s]   TXT STAT t=78758ms n=7875 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=3/2 txd=0B
+[ 15.00s]   TXT DIAG en=1 state=2 conf=1 span=9 blk=36 unev=0 mask=1
+[ 16.66s] FAULT t=80411ms STUCK 卡死 恢复 mask=0x00 span=187mV
+[ 20.00s]   TXT STAT t=83758ms n=8375 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=3/2 txd=0B
+[ 20.00s]   TXT DIAG en=1 state=1 conf=1 span=13 blk=31 unev=0 mask=0
+[ 25.00s]   TXT STAT t=88755ms n=8875 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=1 cmd=3/2 txd=0B
+[ 25.00s]   TXT DIAG en=1 state=0 conf=1 span=540 blk=26 unev=0 mask=0
+[ 30.00s]   TXT STAT t=93759ms n=9375 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=4 cmd=3/2 txd=0B
+[ 30.00s]   TXT DIAG en=1 state=0 conf=1 span=825 blk=21 unev=0 mask=0
+[ 35.00s]   TXT STAT t=98759ms n=9875 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=4 cmd=3/2 txd=0B
+[ 35.00s]   TXT DIAG en=1 state=1 conf=1 span=9 blk=16 unev=0 mask=0
+[ 35.85s] FAULT t=99601ms STUCK 卡死 确认 mask=0x01 span=8mV
+[ 40.00s]   TXT STAT t=103756ms n=10375 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=4 cmd=3/2 txd=0B
+[ 40.00s]   TXT DIAG en=1 state=2 conf=2 span=9 blk=11 unev=0 mask=1
+---- 合计 ----
+时长 45.0s  SAMPLE 4376  解析错误 0
+FAULT 帧 2 个
+  80411ms STUCK 卡死   恢复 mask=0x00 value=187
+  99601ms STUCK 卡死   确认 mask=0x01 value=8
+=== 收尾：关闭诊断，恢复默认状态 ===
+   OK diag off
+   STAT t=183975ms n=18397 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=4 cmd=3/2 txd=0B
+   ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+   DIAG en=0 state=2 conf=2 span=9 blk=53 unev=0 mask=1

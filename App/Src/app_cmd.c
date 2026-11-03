@@ -118,6 +118,29 @@ static void on_frame(uint8_t type, uint8_t seq, const uint8_t *payload, uint8_t 
       }
       break;
 
+    case PROTO_T_SET_DIAG:
+      /* 先挡长度和取值，再交给回调：非法命令绝不能碰到采样与通信 */
+      if (len != PROTO_LEN_SET_DIAG)
+      {
+        res = CMD_RES_PARAM;
+      }
+      else if (payload[0] > 1u)
+      {
+        res = CMD_RES_PARAM;      /* 只有 0/1 合法，2..255 一律拒绝 */
+      }
+      else if (s_ops->set_diag != 0)
+      {
+        if (s_ops->set_diag(payload[0]) == 0u)
+        {
+          res = CMD_RES_PARAM;
+        }
+      }
+      else
+      {
+        res = CMD_RES_UNKNOWN;
+      }
+      break;
+
     default:
       res = CMD_RES_UNKNOWN;
       break;

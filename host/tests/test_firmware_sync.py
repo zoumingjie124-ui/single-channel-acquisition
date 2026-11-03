@@ -60,16 +60,31 @@ class TestFirmwareSync(unittest.TestCase):
             "PROTO_T_STAT": P.T_STAT,
             "PROTO_T_ACK": P.T_ACK,
             "PROTO_T_BOOT": P.T_BOOT,
+            "PROTO_T_FAULT": P.T_FAULT,
             "PROTO_T_SET_THR": P.T_SET_THR,
             "PROTO_T_SET_LED": P.T_SET_LED,
             "PROTO_T_GET_STAT": P.T_GET_STAT,
             "PROTO_T_RESET": P.T_RESET,
             "PROTO_T_PING": P.T_PING,
+            "PROTO_T_SET_DIAG": P.T_SET_DIAG,
         }
         for name, value in pairs.items():
             self.assertIn(name, self.fw, "固件头文件缺少 %s" % name)
             self.assertEqual(self.fw[name], value, "%s 两端不一致：固件 0x%02X，上位机 0x%02X"
                              % (name, self.fw[name], value))
+
+    def test_fault_field_constants(self):
+        """FAULT 载荷里的 event / fault_id / 掩码必须两端一致"""
+        pairs = {
+            "PROTO_FAULT_EV_CONFIRM": P.FAULT_EV_CONFIRM,
+            "PROTO_FAULT_EV_RECOVER": P.FAULT_EV_RECOVER,
+            "PROTO_FAULT_ID_STUCK": P.FAULT_ID_STUCK,
+            "PROTO_FAULT_MASK_STUCK": P.FAULT_MASK_STUCK,
+        }
+        for name, value in pairs.items():
+            self.assertIn(name, self.fw, "固件头文件缺少 %s" % name)
+            self.assertEqual(self.fw[name], value,
+                             "%s 两端不一致：固件 %d，上位机 %d" % (name, self.fw[name], value))
 
     def test_physical_constants(self):
         """电压量程与滞回必须和固件一致：上位机若写死数值，改固件就会悄悄漂移"""
@@ -82,6 +97,8 @@ class TestFirmwareSync(unittest.TestCase):
         self.assertEqual(self.fw["PROTO_LEN_STAT"], 37)
         self.assertEqual(self.fw["PROTO_LEN_ACK"], 2)
         self.assertEqual(self.fw["PROTO_LEN_BOOT"], 7)
+        self.assertEqual(self.fw["PROTO_LEN_FAULT"], 9)
+        self.assertEqual(self.fw["PROTO_LEN_SET_DIAG"], 1)
 
     def test_threshold_overflow_guard_in_c(self):
         """检查 app_alarm_set_thresholds 未对 (warn_mv + APP_THR_HYST_MV) 做 uint16_t 截断"""
@@ -132,6 +149,31 @@ class TestStatLayout(unittest.TestCase):
         self.assertEqual(single, [4, 5])
         # u32(4) + from/to(2 个 u8) + filt(1 个 u16) = 8
         self.assertEqual(u32[-1] + 4 + len(single) + 2 * len(u16), 8)
+
+
+FAULT_C = os.path.join(FW_DIR, "Src", "app_fault.c")
+
+
+@unittest.skipUnless(os.path.exists(FAULT_C), "找不到 app_fault.c，跳过")
+class TestFaultLayout(unittest.TestCase):
+    """FAULT 载荷 9 字节：u32(0) + 3×u8(4/5/6) + u16(7)。偏移写错，两端就永远对不上。"""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(FAULT_C, encoding="utf-8") as f:
+            cls.src = f.read()
+
+    def test_build_payload_layout(self):
+        start = self.src.index("void app_fault_build_payload")
+        end = self.src.index("\n}", start)
+        body = self.src[start:end]
+        u32 = [int(x) for x in re.findall(r"proto_put_u32\(&p\[(\d+)\]", body)]
+        u16 = [int(x) for x in re.findall(r"proto_put_u16\(&p\[(\d+)\]", body)]
+        single = [int(x) for x in re.findall(r"\bp\[(\d+)\]\s*=", body)]
+        self.assertEqual(u32, [0], "t_ms 必须在偏移 0")
+        self.assertEqual(single, [4, 5, 6], "event / fault_id / active 必须在 4/5/6")
+        self.assertEqual(u16, [7], "value 必须在偏移 7")
+        self.assertEqual(u32[-1] + 4 + len(single) + 2 * len(u16), 9)
 
 
 if __name__ == "__main__":

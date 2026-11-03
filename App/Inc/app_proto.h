@@ -31,6 +31,7 @@
 #define PROTO_T_STAT            0x83u   /* 运行统计 */
 #define PROTO_T_ACK             0x84u   /* 命令应答 */
 #define PROTO_T_BOOT            0x85u   /* 上电信息 */
+#define PROTO_T_FAULT           0x86u   /* 故障确认 / 恢复（Stage 7C） */
 
 /* 上位机 -> 设备 */
 #define PROTO_T_SET_THR         0x10u   /* 设置阈值 */
@@ -38,6 +39,7 @@
 #define PROTO_T_GET_STAT        0x12u   /* 请求统计 */
 #define PROTO_T_RESET           0x13u   /* 清零统计 */
 #define PROTO_T_PING            0x14u   /* 心跳 */
+#define PROTO_T_SET_DIAG        0x15u   /* 使能 / 关闭故障诊断（Stage 7C） */
 
 /* ------------------------------ 载荷长度 ------------------------------ */
 #define PROTO_LEN_SAMPLE        10u     /* t_ms(4) raw(2) filt(2) level(1) seq8(1) */
@@ -45,6 +47,21 @@
 #define PROTO_LEN_STAT          37u     /* 见 app_task.c 的 build_stat_payload() */
 #define PROTO_LEN_ACK           2u      /* req_type(1) result(1) */
 #define PROTO_LEN_BOOT          7u      /* fw_ver(2) rate(2) dma_buf(1) filter(1) decim(1) */
+#define PROTO_LEN_FAULT         9u      /* t_ms(4) event(1) fault_id(1) active(1) value(2) */
+#define PROTO_LEN_SET_DIAG      1u      /* enable(1) */
+
+/* ------------------------- FAULT 载荷字段取值 ------------------------- */
+/* event：确认与恢复各上报一次，中间不重复发（见 app_fault.c） */
+#define PROTO_FAULT_EV_CONFIRM  1u
+#define PROTO_FAULT_EV_RECOVER  2u
+
+/* fault_id：故障种类编号，从 1 开始，0 保留给"无故障" */
+#define PROTO_FAULT_ID_STUCK    1u      /* 信号卡死（Stage 7B 的诊断结果） */
+
+/* active：位掩码，表示"此刻仍处于已确认态"的故障集合。
+   用掩码而不是单个 id，是为了让多个故障并存时，
+   其中一个恢复不会把另一个也清掉（上位机按位判断）。 */
+#define PROTO_FAULT_MASK_STUCK  0x01u
 
 /* ------------------------------ 帧尺寸 ------------------------------ */
 #define PROTO_MAX_PAYLOAD       40u

@@ -8,8 +8,10 @@
   *     ../App/Src/app_alarm.c
   *     ../App/Src/app_filter.c
   *     ../App/Src/app_diag.c
+  *     ../App/Src/app_fault.c
+  *     ../App/Src/app_cmd.c   （依赖 HAL 的两个符号由 stub_board.c 补齐）
   *
-  * 这些模块不依赖 HAL，可以原样在 PC 上编译运行。
+  * 这些模块不依赖 HAL（app_cmd 仅通过桩解耦），可以原样在 PC 上编译运行。
   * 与上位机的 Python 测试（host/tests）分开：那是测协议解析/流水线，
   * 这里是测**设备侧真正跑的那份 C 代码**。
   ******************************************************************************
@@ -23,18 +25,22 @@ void test_proto(void);
 void test_alarm(void);
 void test_filter(void);
 void test_diag(void);
+void test_fault(void);
+void test_cmd(void);
 
 int main(void)
 {
   printf("============================================================\n");
   printf("固件纯逻辑单元测试（GCC / PC）\n");
-  printf("被测：app_proto.c  app_alarm.c  app_filter.c  app_diag.c\n");
+  printf("被测：app_proto.c  app_alarm.c  app_filter.c  app_diag.c  app_fault.c  app_cmd.c\n");
   printf("============================================================\n");
 
   test_proto();
   test_alarm();
   test_filter();
   test_diag();
+  test_fault();
+  test_cmd();
 
   printf("\n============================================================\n");
   printf("断言 %d 项，失败 %d 项\n", g_checks, g_fail);

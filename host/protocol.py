@@ -34,6 +34,7 @@ T_EVENT = 0x82
 T_STAT = 0x83
 T_ACK = 0x84
 T_BOOT = 0x85
+T_FAULT = 0x86
 
 # 上位机 -> 设备
 T_SET_THR = 0x10
@@ -41,6 +42,7 @@ T_SET_LED = 0x11
 T_GET_STAT = 0x12
 T_RESET = 0x13
 T_PING = 0x14
+T_SET_DIAG = 0x15
 
 TYPE_NAMES = {
     T_SAMPLE: "SAMPLE",
@@ -48,16 +50,29 @@ TYPE_NAMES = {
     T_STAT: "STAT",
     T_ACK: "ACK",
     T_BOOT: "BOOT",
+    T_FAULT: "FAULT",
     T_SET_THR: "SET_THR",
     T_SET_LED: "SET_LED",
     T_GET_STAT: "GET_STAT",
     T_RESET: "RESET",
     T_PING: "PING",
+    T_SET_DIAG: "SET_DIAG",
 }
 
 LEVEL_NAMES = {0: "NORMAL", 1: "WARN", 2: "CRIT"}
 
 ACK_RESULTS = {0: "OK", 1: "参数错误", 2: "未知命令"}
+
+# FAULT 帧的字段取值，与 app_proto.h 一一对应
+FAULT_EV_CONFIRM = 1
+FAULT_EV_RECOVER = 2
+FAULT_EVENT_NAMES = {FAULT_EV_CONFIRM: "确认", FAULT_EV_RECOVER: "恢复"}
+
+FAULT_ID_STUCK = 1
+FAULT_ID_NAMES = {FAULT_ID_STUCK: "STUCK 卡死"}
+
+FAULT_MASK_STUCK = 0x01
+FAULT_MASK_NAMES = {FAULT_MASK_STUCK: "STUCK"}
 
 
 def crc16(data: bytes) -> int:
@@ -153,6 +168,34 @@ class Boot:
         return "V%d.%d" % (self.fw_version >> 8, self.fw_version & 0xFF)
 
 
+@dataclass
+class Fault:
+    """故障确认/恢复事件。只在跃变时出现，不逐样本重复。"""
+
+    t_ms: int
+    event: int            # 1=确认 2=恢复
+    fault_id: int
+    active: int           # 上报后的"仍处于已确认态"位掩码
+    value: int            # 与故障相关的观测量（STUCK 用最近结算块的 span，mV）
+
+    @property
+    def event_name(self) -> str:
+        return FAULT_EVENT_NAMES.get(self.event, "未知(%d)" % self.event)
+
+    @property
+    def fault_name(self) -> str:
+        return FAULT_ID_NAMES.get(self.fault_id, "0x%02X" % self.fault_id)
+
+    @property
+    def active_names(self) -> str:
+        names = [n for bit, n in FAULT_MASK_NAMES.items() if self.active & bit]
+        return "+".join(names) if names else "无"
+
+    @property
+    def text(self) -> str:
+        return "%s %s" % (self.fault_name, self.event_name)
+
+
 def parse_sample(p: bytes) -> Sample:
     if len(p) != 10:
         raise ValueError("SAMPLE len %d != 10" % len(p))
@@ -187,6 +230,13 @@ def parse_boot(p: bytes) -> Boot:
     return Boot(ver, rate, buf, depth, decim)
 
 
+def parse_fault(p: bytes) -> Fault:
+    if len(p) != 9:
+        raise ValueError("FAULT len %d != 9" % len(p))
+    t_ms, event, fault_id, active, value = struct.unpack("<IBBBH", p)
+    return Fault(t_ms, event, fault_id, active, value)
+
+
 # ------------------------------ 命令构造与校验 ------------------------------
 def validate_thresholds(warn_mv: int, crit_mv: int) -> bool:
     """阈值合法性校验，与固件 app_alarm_set_thresholds() 完全一致。"""
@@ -217,6 +267,11 @@ def build_reset(seq: int) -> bytes:
 
 def build_ping(seq: int) -> bytes:
     return encode(T_PING, seq, b"")
+
+
+def build_set_diag(enable: bool, seq: int) -> bytes:
+    """故障诊断开关。固件只接受 0/1，其余值回 ACK 参数错误（不进回调）。"""
+    return encode(T_SET_DIAG, seq, bytes([1 if enable else 0]))
 
 
 # ------------------------------ 增量解析 ------------------------------
@@ -324,6 +379,8 @@ def decode_many(frames: Iterable[Tuple[int, int, bytes]]):
                 out.append(parse_ack(payload))
             elif msg_type == T_BOOT:
                 out.append(parse_boot(payload))
+            elif msg_type == T_FAULT:
+                out.append(parse_fault(payload))
         except ValueError:
             continue
     return out

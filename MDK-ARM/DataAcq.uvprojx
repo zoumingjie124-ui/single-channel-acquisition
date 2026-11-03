@@ -475,6 +475,11 @@
               <FileType>1</FileType>
               <FilePath>../App/Src/app_diag.c</FilePath>
             </File>
+            <File>
+              <FileName>app_fault.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../App/Src/app_fault.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

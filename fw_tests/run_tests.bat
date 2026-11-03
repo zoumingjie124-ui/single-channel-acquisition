@@ -23,9 +23,10 @@ echo Compiler:
 echo.
 
 "%GCC%" -std=c99 -Wall -Wextra -Werror -O2 -I..\App\Inc -I. ^
-  main.c test_proto.c test_alarm.c test_filter.c test_diag.c ^
+  main.c test_proto.c test_alarm.c test_filter.c test_diag.c test_fault.c test_cmd.c ^
+  stub_board.c ^
   ..\App\Src\app_proto.c ..\App\Src\app_alarm.c ..\App\Src\app_filter.c ^
-  ..\App\Src\app_diag.c ^
+  ..\App\Src\app_diag.c ..\App\Src\app_fault.c ..\App\Src\app_cmd.c ^
   -o fw_tests.exe
 
 if errorlevel 1 (

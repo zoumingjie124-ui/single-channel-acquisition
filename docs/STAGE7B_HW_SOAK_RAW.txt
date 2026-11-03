@@ -1,0 +1,11 @@
+duration=10 min  原始字节=1046537  (由 hw_soak_parse.ps1 从 _raw.bin 生成)
+[   60s] SAMPLE 6001  (+6001 ) STAT 60   (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  120s] SAMPLE 12001 (+6000 ) STAT 120  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  180s] SAMPLE 18001 (+6000 ) STAT 180  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  240s] SAMPLE 24001 (+6000 ) STAT 240  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  300s] SAMPLE 30001 (+6000 ) STAT 300  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  360s] SAMPLE 36001 (+6000 ) STAT 360  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  420s] SAMPLE 42001 (+6000 ) STAT 420  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  480s] SAMPLE 48001 (+6000 ) STAT 480  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  540s] SAMPLE 54001 (+6000 ) STAT 540  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0
+[  600s] SAMPLE 60001 (+6000 ) STAT 600  (+60  ) | drops=0      frame_err=0    adc_err=0    uart_err=0    rx_err=0    | seq8缺口=0    整帧丢失=0    解析错=0

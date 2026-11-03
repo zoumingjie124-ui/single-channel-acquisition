@@ -24,6 +24,7 @@ from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -45,14 +46,18 @@ from PySide6.QtWidgets import (
 
 from protocol import (
     ADC_VREF_MV,
+    FAULT_ID_STUCK,
+    FAULT_MASK_STUCK,
     LEVEL_NAMES,
     THR_HYST_MV,
     T_ACK,
     T_BOOT,
     T_EVENT,
+    T_FAULT,
     T_GET_STAT,
     T_RESET,
     T_SAMPLE,
+    T_SET_DIAG,
     T_SET_LED,
     T_SET_THR,
     T_STAT,
@@ -60,11 +65,13 @@ from protocol import (
     Ack,
     Boot,
     Event,
+    Fault,
     FrameParser,
     Sample,
     Stat,
     build_get_stat,
     build_reset,
+    build_set_diag,
     build_set_led,
     build_set_thr,
     decode_many,
@@ -202,6 +209,10 @@ class MainWindow(QMainWindow):
         self.csv_path = None
         self.csv_file = None
         self.csv_writer = None
+
+        # 故障诊断（Stage 7C）：设备默认关闭，界面上必须显式打勾才会下发 SET_DIAG
+        self.diag_enabled = False
+        self.fault_mask = 0
 
         self._build_ui()
         self._refresh_ports()
@@ -341,6 +352,19 @@ class MainWindow(QMainWindow):
         self.btn_apply.clicked.connect(self._apply_thr)
         tf.addRow(self.btn_apply)
         lay.addWidget(thr)
+
+        # ---- 故障诊断 ----
+        dg = QGroupBox("故障诊断（信号卡死）")
+        df = QFormLayout(dg)
+        self.chk_diag = QCheckBox("使能（需手动勾选，设备默认关闭）")
+        self.chk_diag.toggled.connect(self._toggle_diag)
+        df.addRow(self.chk_diag)
+        self.lbl_fault = QLabel("未使能")
+        self.lbl_fault.setStyleSheet("color:#616161;font-weight:500;")
+        df.addRow("当前故障", self.lbl_fault)
+        self.lbl_fault_last = QLabel("-")
+        df.addRow("最近事件", self.lbl_fault_last)
+        lay.addWidget(dg)
 
         row = QHBoxLayout()
         self.btn_stat = QPushButton("读取统计")
@@ -489,6 +513,11 @@ class MainWindow(QMainWindow):
                     encode(T_STAT, self.demo_src.next_frame_seq(), self.demo_src._pack_stat())))
                 self._on_frames(self.parser.feed(
                     encode(T_ACK, self.demo_src.next_frame_seq(), bytes([T_RESET, 0]))))
+            elif msg_type == T_SET_DIAG:
+                # 演示源不真的做卡死判定，只回 ACK，让界面的开关行为与真机一致
+                res = 0 if (len(payload) == 1 and payload[0] <= 1) else 1
+                self._on_frames(self.parser.feed(
+                    encode(T_ACK, self.demo_src.next_frame_seq(), bytes([T_SET_DIAG, res]))))
 
     def _on_frames(self, frames):
         # 帧头 SEQ 缺口检测：设备所有帧（含 ACK/STAT/EVENT）共用一个逐帧 +1
@@ -515,10 +544,12 @@ class MainWindow(QMainWindow):
             elif isinstance(obj, Boot):
                 self._log("设备启动：固件 %s，采样率 %dHz，滤波 %d 点"
                           % (obj.version_text, obj.sample_rate, obj.filter_depth))
+            elif isinstance(obj, Fault):
+                self._on_fault(obj)
 
         # 原始帧里若有解不出的类型，单独记一笔
         for msg_type, _seq, _payload in frames:
-            if msg_type in (T_SAMPLE, T_EVENT, T_STAT, T_ACK, T_BOOT):
+            if msg_type in (T_SAMPLE, T_EVENT, T_STAT, T_ACK, T_BOOT, T_FAULT):
                 continue
             self._log("未知帧类型 0x%02X (%s)" % (msg_type, TYPE_NAMES.get(msg_type, "?")))
 
@@ -579,6 +610,20 @@ class MainWindow(QMainWindow):
         name = TYPE_NAMES.get(a.req_type, "0x%02X" % a.req_type)
         self._log("应答 %s -> %s" % (name, a.result_name))
 
+    def _on_fault(self, f: Fault):
+        self.fault_mask = f.active
+        if f.active:
+            names = [n for bit, n in ((FAULT_MASK_STUCK, "STUCK 卡死"),) if f.active & bit]
+            self.lbl_fault.setText("、".join(names) if names else "0x%02X" % f.active)
+            self.lbl_fault.setStyleSheet("color:#C62828;font-weight:500;")
+        else:
+            self.lbl_fault.setText("无" if self.diag_enabled else "未使能")
+            self.lbl_fault.setStyleSheet("color:#2E7D32;font-weight:500;")
+
+        self.lbl_fault_last.setText("%d ms  %s  span=%d mV" % (f.t_ms, f.event_name, f.value))
+        self._log("故障%s：%s（t=%dms，span=%dmV，当前故障：%s）"
+                  % (f.event_name, f.fault_name, f.t_ms, f.value, f.active_names))
+
     def _on_lines(self, lines):
         for line in lines:
             self._log(line)
@@ -607,6 +652,14 @@ class MainWindow(QMainWindow):
                                 % (THR_HYST_MV, THR_HYST_MV, ADC_VREF_MV))
             return
         self._send(build_set_thr(w, c, self._next_seq()))
+
+    def _toggle_diag(self, on: bool):
+        self.diag_enabled = bool(on)
+        self._send(build_set_diag(self.diag_enabled, self._next_seq()))
+        if not self.diag_enabled:
+            self.lbl_fault.setText("未使能")
+            self.lbl_fault.setStyleSheet("color:#616161;font-weight:500;")
+        self._log("故障诊断：%s（等 ACK 确认）" % ("使能" if on else "关闭"))
 
     def _set_level(self, level):
         name = LEVEL_NAMES.get(level, "?")

@@ -30,6 +30,7 @@
 #include "app_alarm.h"
 #include "app_cmd.h"
 #include "app_diag.h"
+#include "app_fault.h"
 #include "usart.h"
 
 /* LED 闪烁节奏：WARN 用 250ms 翻转一次（2Hz） */
@@ -48,6 +49,7 @@ typedef struct
   app_filter_t filter;
   app_alarm_t  alarm;
   app_diag_t   diag;      /* Stage 7B：故障诊断（默认关闭，见 app_config.h） */
+  app_fault_t  fault;     /* Stage 7C：诊断结论 -> FAULT 帧的上报登记表 */
 
   uint8_t   led_forced;      /* 1 = 被 led 命令接管 */
   uint8_t   led_forced_on;
@@ -147,6 +149,14 @@ static void emit_stat(void)
   emit_frame(PROTO_T_STAT, p, PROTO_LEN_STAT);
 }
 
+/* app_fault 在 PC 上也要能编译，所以它不认 emit_frame，只认这个回调签名。
+   载荷字节由 app_fault_build_payload() 按协议布局填好，这里只负责发出去。 */
+static void fault_emit(const uint8_t *payload, uint8_t len, void *user)
+{
+  (void)user;
+  emit_frame(PROTO_T_FAULT, payload, len);
+}
+
 /* --------------------------- 命令回调实现 --------------------------- */
 static uint8_t ctx_set_thr(uint16_t warn_mv, uint16_t crit_mv)
 {
@@ -188,6 +198,15 @@ static void ctx_reset_stats(void)
 static void ctx_ping(void)
 {
   /* PING 只回 ACK，由 app_cmd 统一发送，这里无需额外动作 */
+}
+
+static uint8_t ctx_set_diag(uint8_t enable)
+{
+  /* 只切诊断开关，不动已上报的故障登记表：
+     关闭诊断不该让一个真实存在的故障"凭空恢复"（与 app_diag_set_enable 同理）。
+     ACK 由 app_cmd 在本回调返回后统一发出，此时配置已经生效。 */
+  app_diag_set_enable(&s_ctx.diag, (uint8_t)(enable != 0u));
+  return 1u;
 }
 
 /* ---------------------------- 文本命令 ---------------------------- */
@@ -257,6 +276,7 @@ static void on_text_line(const char *line)
     tx_text(" stat              : push STAT frame\r\n");
     tx_text(" thr <warn> <crit> : set thresholds (mV)\r\n");
     tx_text(" led on|off        : force LED\r\n");
+    tx_text(" diag on|off       : enable/disable stuck diagnosis\r\n");
     tx_text(" reset             : clear all counters\r\n");
     tx_text(" note: binary frames start with 0xAA 0x55\r\n");
     return;
@@ -287,6 +307,16 @@ static void on_text_line(const char *line)
             (unsigned long)app_cmd_parser_timeout_count(),
             (unsigned long)usart_rx_restart_ok_count(),
             (unsigned long)usart_rx_restart_fail_count());
+    /* 诊断观测行：只走文本通道。这就是 7B 报告里缺的"无上位机也能确认状态变化"的手段。
+       state: 0=CLEAR 1=CONFIRMING 2=ACTIVE 3=RECOVERING；mask 是已上报的故障位 */
+    tx_text("DIAG en=%u state=%u conf=%lu span=%u blk=%u unev=%lu mask=%u\r\n",
+            (unsigned)s_ctx.diag.enable,
+            (unsigned)app_diag_state(&s_ctx.diag),
+            (unsigned long)app_diag_confirm_count(&s_ctx.diag),
+            (unsigned)app_diag_last_span(&s_ctx.diag),
+            (unsigned)app_diag_block_samples(&s_ctx.diag),
+            (unsigned long)app_diag_uneval_count(&s_ctx.diag),
+            (unsigned)app_fault_active_mask(&s_ctx.fault));
     return;
   }
 
@@ -323,6 +353,26 @@ static void on_text_line(const char *line)
     else
     {
       tx_text("ERR usage: led on|off\r\n");
+    }
+    return;
+  }
+
+  if (strncmp(p, "diag", 4) == 0u)
+  {
+    const char *q = skip_sp(p + 4);
+    if (text_eq(q, "on") != 0u)
+    {
+      (void)ctx_set_diag(1u);
+      tx_text("OK diag on (stuck detection enabled)\r\n");
+    }
+    else if (text_eq(q, "off") != 0u)
+    {
+      (void)ctx_set_diag(0u);
+      tx_text("OK diag off\r\n");
+    }
+    else
+    {
+      tx_text("ERR usage: diag on|off\r\n");
     }
     return;
   }
@@ -386,6 +436,7 @@ static const app_cmd_ops_t s_ops =
   ctx_get_stat,
   ctx_reset_stats,
   ctx_ping,
+  ctx_set_diag,
   on_text_line
 };
 
@@ -399,6 +450,14 @@ static void process_sample(uint16_t raw)
   /* Stage 7B：信号卡死诊断。放在告警之后——它只读 mv_raw，不写任何东西，
      所以顺序不影响滤波与告警的结果。enable 为 0 时函数体内两次判断即返回。 */
   app_diag_update(&s_ctx.diag, mv_raw, s_ctx.tick_ms);
+
+  /* Stage 7C：把诊断结论送进上报登记表。每样本都调，但 app_fault 内部只在
+     "确认/恢复"两个跃变各发一帧，ACTIVE 期间与抖动都不会重复上报。
+     观测量用最近结算块的 span（mV），正好是卡死判据本身，便于上位机核对。 */
+  (void)app_fault_update(&s_ctx.fault, APP_FAULT_ID_STUCK,
+                         app_diag_is_active(&s_ctx.diag),
+                         s_ctx.tick_ms, app_diag_last_span(&s_ctx.diag),
+                         fault_emit, 0);
 
   s_ctx.samples++;
   s_ctx.sample_seq++;
@@ -473,6 +532,7 @@ void app_task_init(void)
   app_filter_init(&s_ctx.filter);
   app_alarm_init(&s_ctx.alarm, APP_THR_WARN_MV, APP_THR_CRIT_MV);
   app_diag_init(&s_ctx.diag);      /* 默认关闭；打开前需先标定阈值 */
+  app_fault_init(&s_ctx.fault);    /* 上报登记表清空：开机时没有任何已上报故障 */
   app_measure_init();
   app_cmd_init(&s_ops);
 

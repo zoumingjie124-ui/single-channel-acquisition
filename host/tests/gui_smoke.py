@@ -30,7 +30,7 @@ except ImportError as exc:            # pragma: no cover
     sys.exit(0)
 
 import main as M  # noqa: E402
-from protocol import T_BOOT, T_SAMPLE, encode  # noqa: E402,F401
+from protocol import T_BOOT, T_FAULT, T_SAMPLE, encode  # noqa: E402,F401
 
 DURATION_MS = 4050   # 4 s + 50 ms：STAT 是 1 Hz，多等半拍让 t=4000 ms 那条 STAT
                      # 被处理掉，否则截图里"运行时间 3.0 s"会和"采样 400+"看着对不上
@@ -68,6 +68,46 @@ def check_frame_gap_detection(win):
     ok_boot = (win.frame_gap_count == base2) and (win.expected_frame_seq == 201)
 
     return ok_reset, ok_gap, ok_boot, counted
+
+
+def check_fault_ui(win):
+    """
+    Stage 7C：验证界面能跟着 FAULT 帧变。
+
+    注意这是**软件模拟**（直接往界面喂帧），不是板级实测：
+    它证明的是"收到确认帧 -> 标签变红显示 STUCK""收到恢复帧 -> 标签回到无"，
+    证明不了设备真的会发这两帧。
+
+    同时验证：插一个未知帧类型不会打挂解析器。
+    """
+    win.demo_src.stop()
+    win.expected_frame_seq = None
+    win.expected_seq = None
+
+    # 1) 勾选使能：应下发 SET_DIAG 并收到 ACK（演示源会回）
+    win.chk_diag.setChecked(True)
+    ok_enable = win.diag_enabled and ("SET_DIAG" in win.log.toPlainText())
+
+    # 2) 故障确认帧
+    seq = 0x60
+    payload = struct.pack("<IBBBH", 3000, 1, 1, 1, 12)      # t=3000 确认 STUCK mask=1 span=12
+    win._on_frames(win.parser.feed(encode(T_FAULT, seq, payload)))
+    ok_confirm = ("STUCK" in win.lbl_fault.text()) and ("确认" in win.lbl_fault_last.text())
+
+    # 3) 故障恢复帧
+    payload = struct.pack("<IBBBH", 6000, 2, 1, 0, 120)     # t=6000 恢复 mask=0 span=120
+    win._on_frames(win.parser.feed(encode(T_FAULT, (seq + 1) & 0xFF, payload)))
+    ok_recover = (win.lbl_fault.text() == "无") and ("恢复" in win.lbl_fault_last.text())
+
+    # 4) 未知帧类型 + 紧接着一帧正常 SAMPLE：解析器不能失效
+    before = win.samples
+    junk = encode(0x99, (seq + 2) & 0xFF, b"\x01\x02\x03")
+    win._on_frames(win.parser.feed(junk))
+    win._on_frames(win.parser.feed(
+        encode(T_SAMPLE, (seq + 3) & 0xFF, struct.pack("<IHHBB", 7000, 1000, 1000, 0, 0))))
+    ok_unknown = (win.samples == before + 1) and (win.parser.errors == 0)
+
+    return ok_enable, ok_confirm, ok_recover, ok_unknown
 
 
 def run():
@@ -158,6 +198,15 @@ def run():
     if not ok_gap:
         ok = False
     if not ok_boot:
+        ok = False
+
+    # ---- 第三段：Stage 7C 故障帧与界面联动（软件模拟）----
+    ok_en, ok_cf, ok_rc, ok_uk = check_fault_ui(win)
+    print("诊断开关下发  : %s" % ("OK" if ok_en else "FAIL"))
+    print("故障确认显示  : %s" % ("OK" if ok_cf else "FAIL"))
+    print("故障恢复显示  : %s" % ("OK" if ok_rc else "FAIL"))
+    print("未知帧不致命  : %s" % ("OK" if ok_uk else "FAIL"))
+    if not (ok_en and ok_cf and ok_rc and ok_uk):
         ok = False
 
     print("RESULT:", "PASS" if ok else "FAIL")

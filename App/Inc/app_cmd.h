@@ -5,7 +5,7 @@
   *
   * 为什么保留文本通道：
   *   二进制帧方便上位机，但调试时你没法用串口助手手敲。
-  *   所以保留 "help / stat / thr / led / reset" 这套 ASCII 命令，
+  *   所以保留 "help / stat / thr / led / reset / diag" 这套 ASCII 命令，
   *   靠首字节区分：0xAA 交给二进制解析器，可打印字符走文本通道，互不干扰。
   ******************************************************************************
   */
@@ -22,6 +22,9 @@ typedef struct
   void    (*get_stat)(void);
   void    (*reset_stats)(void);
   void    (*ping)(void);
+
+  /* Stage 7C：使能/关闭故障诊断。返回 1 = 已接受，0 = 拒绝（回 ACK 参数错误） */
+  uint8_t (*set_diag)(uint8_t enable);
 
   /* 文本命令回调，line 已去掉行尾 */
   void    (*text_line)(const char *line);
