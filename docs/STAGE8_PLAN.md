@@ -558,7 +558,7 @@ Stage 8 的产出只有**测试记录 + 判定结论 + 风险状态更新**，�
 | R1 / R17 | 保持现有未验证状态，不额外设计测试，不得标 PASS |
 | R18 | 保持 `CODE REVIEW PASS`，**不升级为板级验证**；8A 即使执行也不能改变其等级 |
 | 8A 串口 | 只允许**一个进程 / 一个串口会话**同时负责灌命令与收帧，不得两进程并行占用 |
-| `s_busy` 无超时 | 不新增风险编号 / 阶段；在 `TEST_INVENTORY.md` §5.2 登记为 CODE REVIEW FINDING / NOT TESTED（§3.1 结论 3） |
+| `s_busy` 无超时 | 不新增风险编号 / 阶段；在 `TEST_INVENTORY.md` §5.2 登记为 CODE REVIEW FINDING / NOT TESTED（本文件 §3.1 结论 3） |
 
 ### 10.2 现有设备可完成性
 
