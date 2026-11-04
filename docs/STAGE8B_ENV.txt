@@ -1,0 +1,113 @@
+Stage 8B 环境记录（1 小时诊断长跑）
+创建时间: 2026-11-04 11:17:51
+
+===== 一、电源设置：修改前（原值）=====
+[电源方案]
+电源方案 GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (平衡)[睡眠 STANDBYIDLE]
+电源方案 GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (平衡)
+  GUID 别名: SCHEME_BALANCED
+  子组 GUID: 238c9fa8-0aad-41ed-83f4-97be242c8f20  (睡眠)
+    GUID 别名: SUB_SLEEP
+    电源设置 GUID: 29f6c1db-86da-48c5-9fdb-f2b67b1f44da  (在此时间后睡眠)
+      GUID 别名: STANDBYIDLE
+      最小可能的设置: 0x00000000
+      最大可能的设置: 0xffffffff
+      可能的设置增量: 0x00000001
+      可能的设置单位: 秒
+    当前交流电源设置索引: 0x00000384
+    当前直流电源设置索引: 0x00000258
+
+[休眠 HIBERNATEIDLE]
+电源方案 GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (平衡)
+  GUID 别名: SCHEME_BALANCED
+  子组 GUID: 238c9fa8-0aad-41ed-83f4-97be242c8f20  (睡眠)
+    GUID 别名: SUB_SLEEP
+    电源设置 GUID: 9d7815a6-7ee4-497e-8888-515a05f02364  (在此时间后休眠)
+      GUID 别名: HIBERNATEIDLE
+      最小可能的设置: 0x00000000
+      最大可能的设置: 0xffffffff
+      可能的设置增量: 0x00000001
+      可能的设置单位: 秒
+    当前交流电源设置索引: 0x00002a30
+    当前直流电源设置索引: 0x00002a30
+
+[USB 选择性暂停]
+电源方案 GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (平衡)
+  GUID 别名: SCHEME_BALANCED
+  子组 GUID: 2a737441-1930-4402-8d77-b2bebba308a3  (USB 设置)
+    电源设置 GUID: 48e6b7a6-50f5-4782-a5d4-53bb8f07e226  (USB 选择性暂停设置)
+      可能的设置索引: 000
+      可能的设置友好名称: 已禁用
+      可能的设置索引: 001
+      可能的设置友好名称: 已启用
+    当前交流电源设置索引: 0x00000001
+    当前直流电源设置索引: 0x00000001
+
+
+===== 二、电源设置：修改后（按 SOAK_PLAN §9.1）=====
+修改时间: 2026-11-04 11:18:08
+[睡眠 STANDBYIDLE]
+    当前交流电源设置索引: 0x00000000
+    当前直流电源设置索引: 0x00000000
+[休眠 HIBERNATEIDLE]
+    当前交流电源设置索引: 0x00000000
+    当前直流电源设置索引: 0x00000000
+[USB 选择性暂停]
+    当前交流电源设置索引: 0x00000000
+    当前直流电源设置索引: 0x00000000
+判读：0x00000000 = 从不；USB 0 = 禁用选择性暂停
+还原命令见 SOAK_PLAN.md §9.2（原值：睡眠 AC 0x384=900s / DC 0x258=600s；休眠 0x2a30=10800s；USB 0x1=启用）
+
+===== 三、历史日志处理（方案 B，第一步）=====
+原名: docs/SOAK_60MIN.txt  size=10043 mtime=2026-11-03 13:06:13
+SHA-256(改名前): 567735f2c65451bed91b1d6db5cb5c2ae0549c608b636382c93cbc9b7eeacd93
+改名后 : docs/SOAK_60MIN_20261103.txt
+SHA-256(改名后): 567735f2c65451bed91b1d6db5cb5c2ae0549c608b636382c93cbc9b7eeacd93
+核对: 一致，大小与 mtime 未变（mv 不改内容）
+当前 SOAK_60MIN.txt: 不存在（等待本轮测试生成）
+收尾计划: 新日志改名 SOAK_60MIN_20261104.txt，再把 20261103 那份改回 SOAK_60MIN.txt
+
+===== 四、诊断使能与基线（2026-11-04 11:18:31）=====
+SET_DIAG 1 -> ACK OK（0.00 s）
+3.03 s 后收到 FAULT：event=确认 id=STUCK mask=0x01 value=10mV t=724411ms
+基线 stat 原文：
+  STAT t=729403ms n=64787 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=2/0 txd=0B
+  ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+  DIAG en=1 state=2 conf=1 span=9 blk=95 unev=0 mask=1 rep=1
+判读: conf0=1（确认后计数），state=2=ACTIVE，mask=rep=1，span=9mV
+说明: 此处的 uptime=729403ms 仅供参照；H11 用的 uptime0 将在启动 soak 前紧邻重取。
+
+===== 五、启动记录（2026-11-04）=====
+启动前 stat（端口释放前，11:24:05.619）:
+  STAT t=1071815ms n=99028 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=2/0 txd=0B
+  DIAG en=1 state=2 conf=1 span=8 blk=97 unev=0 mask=1 rep=1
+uptime0        = 1071815 ms（H11 基准）
+conf0          = 1（确认后计数）
+state/mask/rep = 2 / 1 / 1
+墙钟(t_stat)   = 2026-11-04 11:24:05.619
+soak 日志起始  = 2026-11-04 11:24:12（port=COM5 duration=60 min）
+预计结束       = 2026-11-04 12:24:12
+启动前时基校验 = 30.8 s 窗口：设备 t 增量 30825 ms / 墙钟 30821.2 ms，比值 1.000125；折算 99.996 Hz
+启动命令       = python host/tools/soak.py 60 COM5
+期间约束       = 不碰电位器/PA1/板电/USB；不启动 GUI 或其他串口程序
+H11 计算方式   = |(uptime_end - uptime0) - (t_end_stat - t_stat)| / (t_end_stat - t_stat) < 0.1%
+
+===== 六、终点记录（soak 退出后立即读取，12:24:21.478）=====
+  STAT t=4687953ms n=460642 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=2/0 txd=0B
+  ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+  DIAG en=1 state=2 conf=1 span=8 blk=30 unev=0 mask=1 rep=1
+uptime_end = 4687953 ms
+Δuptime = 3616138 ms | Δwall = 3615859 ms | 偏差 = 0.0077 %（H11 < 0.1% => PASS）
+soak 合计：3600.0 s / 360002 SAMPLE(100.0006 Hz) / 3600 STAT / drops 0 / frame_err 0
+          seq8缺口 45 / 整帧丢失 45 / 解析错误 30 / BOOT 0 / 重连 0 / txd=0B
+判定：H7/H8/H12 FAIL，其余 H1-H6/H9-H11 PASS；B-1..B-5 全 PASS
+
+===== 七、收尾（2026-11-04 12:25:37）=====
+日志回位：本轮 -> SOAK_60MIN_20261104.txt；20261103 -> SOAK_60MIN.txt
+  SOAK_60MIN.txt SHA-256 = 567735f2c65451bed91b1d6db5cb5c2ae0549c608b636382c93cbc9b7eeacd93（与改名前一致，10043 B，mtime 11-03 13:06 未变）
+  SOAK_60MIN_20261104.txt SHA-256 = fb211deee2f4ef4c91ddc1a394b202f036a2df75c4e1180bf52d915d471f5999（10090 B）
+电源还原（按 SOAK_PLAN §9.2）：
+  睡眠 AC/DC = 0x384 / 0x258（900 s / 600 s）
+  休眠 AC/DC = 0x2a30 / 0x2a30（10800 s）
+  USB 选择性暂停 = 0x1 / 0x1（启用）
+  —— 以上为 powercfg 查询实际生效值，非命令返回码
