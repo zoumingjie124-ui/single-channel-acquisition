@@ -45,7 +45,7 @@ uint32_t usart_err_pe_count(void);
 uint32_t usart_rx_fail_count(void);
 void     usart_reset_counters(void);
 
-/* 仅调试构建使用：制造一次真实的硬件 ORE，返回 0/1/2（见实现处说明） */
+/* 仅调试构建使用：制造一次真实的硬件 ORE，返回 0 = 没造出 ORE，1 = 硬件确实置起了 ORE（见实现处说明） */
 #if (APP_DEBUG_INJECT != 0u)
 uint8_t  usart_ore_inject(void);
 #endif

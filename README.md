@@ -23,7 +23,8 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
 > - **Stage 7B** 信号卡死诊断模块：✅ `app_diag.c` + **121 条**单测（合计 288）；上板**只验了"默认关闭态 10 分钟长跑"**，触发/恢复当时无使能手段，后由 7C 的 `SET_DIAG` 补验（`docs/STAGE7B_*.md`）
 > - **Stage 7C** 故障协议上报 + 上位机：✅ 板级实测——使能后 **3.02 s** 确认（`span=9 mV`）、人手拧动 `span=187 mV` **恢复**、停手后再次确认；非法参数被拒、关闭诊断不伪造恢复（`docs/STAGE7C_FAULT_PROTOCOL.md`）
 > - **Stage 7C-2** `GET_DIAG` 状态快照 + TX 提交失败恢复：✅ 板级实测——**ACK 先于快照**（seq 46→47）、无故障/有故障快照字段正确、断线期间发生的恢复由重连快照给出真相、连续轮询抓到 **57 帧 `active=0`**；全程 915 帧 SEQ 异常 0（`docs/STAGE7C2_FINAL.md`）
-> - 仍未测：**8 小时长跑**、**绝对电压精度（等万用表）**、**真实 HAL 重挂失败**、告警滞回手感、INL/DNL、**TX 环真实满载后的重试**、**真实传感器诊断**、**诊断开启 1h/8h**、**GUI 点按钮连真板** —— 见 §7 与 `TEST_INVENTORY` §5（R1–R21）；**具体怎么测见 `docs/HW_VERIFY_NEXT.md`**
+> - **Stage 8B** 1h 对照与 8h 长跑：✅ 同构建 `Code=22468` 完成 **Y2（诊断关 1h，360051 帧）PASS**、**X2（诊断开 1h，360050 帧 / 100.014 Hz）PASS**、**8B-2（诊断关 8 小时 / 480 min，2880109 帧 / 100.0038 Hz）H1–H12 12/12 PASS**，drops·丢帧·解析错·复位·重连全 0（`docs/STAGE8B_REPORT.md`、`docs/SOAK_480MIN_RECORD.md`；含同构建早期两轮 1h FAIL 的六轮成组记录见 `TEST_INVENTORY` R3）
+> - 仍未测：**诊断开启（`en=1`）8 小时长跑**、**绝对电压精度（等万用表）**、**真实 HAL 重挂失败**、告警滞回手感、INL/DNL、**TX 环真实满载后的重试**、**真实传感器诊断**、**GUI 点按钮连真板** —— 见 §7 与 `TEST_INVENTORY` §5（R1–R21）；**后续验证计划见 `docs/STAGE8_PLAN.md`**
 
 ---
 
@@ -80,20 +81,23 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
 └── docs/
     ├── PROTOCOL.md             协议逐字段说明（含 §4.8.1 上报语义、§4.10 GET_DIAG）
     ├── CUBEMX_CONFIG.md        CubeMX 配置对照表（本项目无 .ioc，原因见文内）
-    ├── TEST_REPORT.md          编译与测试总账（§1–§19，按时间累积）
+    ├── TEST_REPORT.md          编译与测试总账（§1–§20，按时间累积）
     ├── TEST_INVENTORY.md       证据分级清单（PC / 真板 / 注入）+ 风险 R1–R21 ← **先看这个**
     ├── AUDIT_20261103.md       文档一致性核对 + App/HAL 分层边界复核
     ├── CALIB_ABSOLUTE.md       绝对电压精度测试步骤（待万用表，未执行）
     ├── SOAK_PLAN.md            1 h / 8 h 长跑记录表 + H1–H12 门槛 + 电源设置
     ├── SOAK_60MIN_RECORD.md    1 小时长跑实测记录（脚本生成，非手填）
-    ├── HW_VERIFY_NEXT.md       **下一阶段硬件验证清单（TX 环满载 / 真实传感器 / 诊断长跑）**
+    ├── SOAK_480MIN_RECORD.md   **8 小时（480 min，诊断关）长跑实测记录（2880109 帧全 PASS）**
+    ├── HW_VERIFY_NEXT.md       早期硬件验证清单（已被 STAGE8_PLAN.md 取代，仅留存历史）
     ├── STAGE7_FAULT_DIAG_DESIGN.md   多类型故障诊断设计审查（未改固件）
     ├── STAGE7B_STUCK_DIAG.md         卡死诊断模块 + 121 条单测
     ├── STAGE7C_FAULT_PROTOCOL.md     0x86/0x15 协议 + 上位机集成 + 板级实测
     ├── STAGE7C_PROTOCOL_AUDIT.md     8 条协议约束逐条核对
     ├── STAGE7C_GET_DIAG_DESIGN.md    GET_DIAG 设计（含状态机推演）
     ├── STAGE7C2_GET_DIAG.md          快照 + TX 失败恢复 实现报告
-    ├── STAGE7C2_FINAL.md             **7C-2 最终验收报告（四层证据分级）**
+    ├── STAGE7C2_FINAL.md             7C-2 最终验收报告（四层证据分级）
+    ├── STAGE8_PLAN.md                **Stage 8 收尾验证计划（R15/R16/R20/R21/R2）**
+    ├── STAGE8B_REPORT.md             **Stage 8B 1h（Y2/X2）与 8h（8B-2）长跑报告 + NTP 校时根因分析**
     └── STAGE1–4 阶段报告与原始日志（STAGE1_ADC_RECOVERY / STAGE2_ADC_LINEARITY /
         STAGE3_UART_DMA / STAGE3_GUARD / STAGE4_C_UNIT_TESTS + *_RAW.txt）
 ```
@@ -188,6 +192,8 @@ python main.py --demo     :: 无硬件演示（内置 100Hz 信号源，走同�
 | 2026-11-02 23:46 | Stage 1 ADC 故障恢复 | **COM5** |
 | 2026-11-03 08:48 起 | Stage 2 / Stage 3、1 小时长跑、7C 板级 | **COM6** |
 | 2026-11-03 23:1x | 7C-2（`GET_DIAG` 快照），烧录后重枚举 | **COM5** |
+| 2026-11-04 11:24–16:14 | Stage 8B 早期两轮 1h（Hub 1-2.2，均 FAIL） | **COM5 / COM4** |
+| 2026-11-04 18:14 – 11-05 07:28 | Stage 8B（Y2 1h / X2 诊断开 1h / 8B-2 诊断关 8h，1-2.1.3，全 PASS） | **COM5** |
 
 复跑时**先列端口，再照抄命令**，不要直接复制文档里的 COM 号：
 
@@ -247,8 +253,8 @@ CRC 只能发现内容被改坏，发现不了整帧丢失；SEQ 不连续才能
 | 真实 HAL 重挂失败（`start_rx` 返回 BUSY） | ❌ **NOT TESTED**（风险 R1）                        |
 | 绝对电压精度               | ❌ **NOT TESTED**，等万用表测 VDDA（风险 R2）           |
 | INL / DNL             | ❌ 无法测（固件不上报原始码）                             |
-| 1 小时连续运行               | ✅ 已实测：3600 s / 360047 帧 / **100.010 Hz**，12 项门槛全过（§17） |
-| 8 小时稳定性              | ❌ 未做（最长 1 小时；记录表见 `docs/SOAK_PLAN.md`）        |
+| 1 小时连续运行               | ✅ 已实测：无诊断版 360047 帧 PASS（§17）；`Code=22468` **Y2（诊断关 1h，360051 帧）PASS**、**X2（诊断开 1h，360050 帧）PASS**（同构建早期两轮 1h FAIL 一并列于 R3/R20） |
+| 8 小时稳定性              | △ **部分通过（诊断关 8h PASS / 诊断开 8h 未做）**：8B-2 实测 **480 min / 2880109 帧 / 100.0038 Hz**，H1–H12 全 PASS，drops·缺口·解析错·复位·重连全 0（`docs/SOAK_480MIN_RECORD.md`、`docs/STAGE8B_REPORT.md` §8，风险 R3） |
 | 卡死诊断（模块逻辑）          | ✅ C 单测 121 条（Stage 7B）；**上板触发/恢复**在 7C 用 `SET_DIAG` 补验（见下两行） |
 | FAULT 确认事件（板级）        | ✅ 使能后 **3.02 s** 确认，`mask=0x01 value=8 mV`（静置输入的块内峰峰值） |
 | FAULT 恢复事件（板级）        | ✅ 人手拧动电位器 `span=187 mV` → 恢复；停手后再次确认（`conf` 累加） |
@@ -261,7 +267,7 @@ CRC 只能发现内容被改坏，发现不了整帧丢失；SEQ 不连续才能
 | **多故障快照**               | ⚠ **UNIT PASS**：仅白盒单测，固件只登记 STUCK 一种，风险 R17 |
 | **队列检查与写入的并发**      | ✅ **CODE REVIEW PASS**：ACK/FAULT 均在主循环入队，无 ISR 入队生产者，风险 R18 |
 | **真实传感器诊断**（断线/探头失效） | ❌ **NOT TESTED**（只有电位器，不能声称验证了传感器失效），风险 R19 |
-| **诊断开启 1h / 8h 长跑**     | ❌ **NOT TESTED**（7C-2 板级累计约 10 分钟），风险 R20 |
+| **诊断开启 1h / 8h 长跑**     | △ **1h 已通过（先 FAIL 后 X2 PASS，两次均列）/ 8h（`en=1`）NOT TESTED**（`STAGE8B_REPORT.md` §5，风险 R20） |
 | **GUI 点按钮连真板**          | ❌ **NOT TESTED**（界面联动是离屏冒烟，真板走脚本），风险 R21 |
 
 **没有运行过的东西，本文件不会写成"已验证"。**
@@ -270,12 +276,13 @@ CRC 只能发现内容被改坏，发现不了整帧丢失；SEQ 不连续才能
 
 ## 8. 已知限制
 
-1. **上板验证做到九轮**：10 分钟连续采集、零点与满量程、HT 修复（含反向对照）、
+1. **上板验证做到十轮**：10 分钟连续采集、零点与满量程、HT 修复（含反向对照）、
    ADC 故障恢复（Stage 1）、全量程线性扫掠（Stage 2）、UART/DMA 异常 + 加固 A/B（Stage 3）、
-   1 小时长跑（Stage 6）、故障确认/恢复 + 非法命令（Stage 7C）、`GET_DIAG` 快照与断线重连（Stage 7C-2）。
-   **仍未做**：8 小时长跑、告警滞回手感、绝对电压精度、真实 HAL 重挂失败、
-   TX 环真实满载、真实传感器诊断、诊断开启 1h/8h、GUI 点按钮连真板 ——
-   清单与关闭条件见 `docs/TEST_INVENTORY.md` §5（R1–R21）与 `docs/STAGE7C2_FINAL.md`。
+   1 小时长跑（Stage 6）、故障确认/恢复 + 非法命令（Stage 7C）、`GET_DIAG` 快照与断线重连（Stage 7C-2）、
+   1h 对照（Y2/X2）与诊断关 8 小时长跑（Stage 8B / 8B-2，480 min / 2880109 帧 PASS）。
+   **仍未做**：诊断开启（`en=1`）8 小时长跑、告警滞回手感、绝对电压精度、真实 HAL 重挂失败、
+   TX 环真实满载、真实传感器诊断、GUI 点按钮连真板 ——
+   清单与关闭条件见 `docs/TEST_INVENTORY.md` §5（R1–R21）与 `docs/STAGE8B_REPORT.md`。
 2. 断开串口后不自动重连（手动点连接）。重连成功后会自动发一次 `GET_DIAG` 对齐故障状态。
 3. **故障边沿可能被合并**：发送环阻塞期间的多次确认/恢复，恢复后只提交当时的状态，
    不补发历史事件。这是有意的取舍，漏掉的边沿由 `GET_DIAG` 快照兜底（协议见 `PROTOCOL.md` §4.8.1）。

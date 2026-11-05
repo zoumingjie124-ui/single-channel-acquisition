@@ -428,8 +428,8 @@ static void on_text_line(const char *line)
 
   /* 阶段三测试专用：制造一次**真实**的硬件 ORE。
      做法是先停掉接收（DMA 不再取走 DR），主机在随后 30 ms 内继续发字节，
-     第 2 个字节到达时硬件置 ORE；然后重新挂接收，让真实的中断路径处理它。
-     返回值：0=没造出来 / 1=中断路径自行恢复 / 2=需兜底。 */
+     第 2 个字节到达时硬件置 ORE；随后清标志并重新挂接收。
+     返回值：0 = 没能置起 ORE / 1 = 硬件确实置起了 ORE（见 usart_ore_inject 说明）。 */
   if (text_eq(p, "oreinject") != 0u)
   {
     uint8_t r = usart_ore_inject();   /* 1 = 硬件确实置起了 ORE */
