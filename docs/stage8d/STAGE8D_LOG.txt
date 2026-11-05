@@ -1,0 +1,217 @@
+[port] 选择 COM5
+>> 点击 连接
+
+===== 01_D1_connected   16:26:24 =====
+[pix]        <工作目录>\_8d\shots\01_D1_connected.png
+[conn]       已连接 COM5
+[level]      NORMAL
+[fault]      STUCK 卡死   last=1925036 ms  状态同步
+[diag_chk]   False
+[table_rows] 0
+[samples]    398   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    已连接 COM5
+    查询故障状态（连接后自动）
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=1925036ms）
+>> 点击 使能诊断（勾选）
+
+===== 02_D3_enabled   16:26:27 =====
+[pix]        <工作目录>\_8d\shots\02_D3_enabled.png
+[conn]       已连接 COM5
+[level]      NORMAL
+[fault]      STUCK 卡死   last=1925036 ms  状态同步
+[diag_chk]   True
+[table_rows] 0
+[samples]    698   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    已连接 COM5
+    查询故障状态（连接后自动）
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=1925036ms）
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+>> 点击 取消使能（取消勾选）
+
+===== 03_D6_disabled   16:26:30 =====
+[pix]        <工作目录>\_8d\shots\03_D6_disabled.png
+[conn]       已连接 COM5
+[level]      NORMAL
+[fault]      未使能   last=1925036 ms  状态同步
+[diag_chk]   False
+[table_rows] 0
+[samples]    997   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    已连接 COM5
+    查询故障状态（连接后自动）
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=1925036ms）
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    故障诊断：关闭（等 ACK 确认）
+    应答 SET_DIAG -> OK
+>> 点击 查询故障状态
+
+===== 04_D7_query_while_disabled   16:26:33 =====
+[pix]        <工作目录>\_8d\shots\04_D7_query_while_disabled.png
+[conn]       已连接 COM5
+[level]      NORMAL
+[fault]      STUCK 卡死   last=1934883 ms  状态同步
+[diag_chk]   False
+[table_rows] 0
+[samples]    1298   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    查询故障状态（连接后自动）
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=1925036ms）
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    故障诊断：关闭（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    查询故障状态
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=1934883ms）
+>> 点击 重新使能（勾选）
+
+===== 05_D8_reenabled   16:26:37 =====
+[pix]        <工作目录>\_8d\shots\05_D8_reenabled.png
+[conn]       已连接 COM5
+[level]      NORMAL
+[fault]      STUCK 卡死   last=1934883 ms  状态同步
+[diag_chk]   True
+[table_rows] 0
+[samples]    1647   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    状态同步：当前故障 STUCK（t=1925036ms）
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    故障诊断：关闭（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    查询故障状态
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=1934883ms）
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+
+>>> 等待人工动作：把电位器拧动使得故障恢复（界面转“无”），再停手
+>>> 完成后请让执行代理创建 <工作目录>\_8d\go1.flag
+>>> 收到人工完成信号，继续
+
+===== 06_D9_recover   16:28:03 =====
+[pix]        <工作目录>\_8d\shots\06_D9_recover.png
+[conn]       已连接 COM5
+[level]      NORMAL
+[fault]      STUCK 卡死   last=2014631 ms  确认  span=12 mV
+[diag_chk]   True
+[table_rows] 4
+[samples]    10333   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    告警变化：NORMAL -> WARN（filt=2549mV）
+    故障恢复：STUCK 卡死（t=1991401ms，span=3048mV，当前故障：无）
+    告警变化：WARN -> CRIT（filt=3038mV）
+    故障确认：STUCK 卡死（t=1995441ms，span=5mV，当前故障：STUCK）
+    告警变化：CRIT -> WARN（filt=2870mV）
+    告警变化：WARN -> NORMAL（filt=2305mV）
+    故障恢复：STUCK 卡死（t=2008571ms，span=1262mV，当前故障：无）
+    故障确认：STUCK 卡死（t=2014631ms，span=12mV，当前故障：STUCK）
+
+===== 07_D4_confirm_after_idle   16:28:09 =====
+[pix]        <工作目录>\_8d\shots\07_D4_confirm_after_idle.png
+[conn]       已连接 COM5
+[level]      NORMAL
+[fault]      STUCK 卡死   last=2014631 ms  确认  span=12 mV
+[diag_chk]   True
+[table_rows] 4
+[samples]    10933   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    告警变化：NORMAL -> WARN（filt=2549mV）
+    故障恢复：STUCK 卡死（t=1991401ms，span=3048mV，当前故障：无）
+    告警变化：WARN -> CRIT（filt=3038mV）
+    故障确认：STUCK 卡死（t=1995441ms，span=5mV，当前故障：STUCK）
+    告警变化：CRIT -> WARN（filt=2870mV）
+    告警变化：WARN -> NORMAL（filt=2305mV）
+    故障恢复：STUCK 卡死（t=2008571ms，span=1262mV，当前故障：无）
+    故障确认：STUCK 卡死（t=2014631ms，span=12mV，当前故障：STUCK）
+>> 点击 断开
+
+===== 08_D10_disconnected   16:28:13 =====
+[pix]        <工作目录>\_8d\shots\08_D10_disconnected.png
+[conn]       已断开
+[level]      NORMAL
+[fault]      STUCK 卡死   last=2014631 ms  确认  span=12 mV
+[diag_chk]   True
+[table_rows] 4
+[samples]    11085   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    应答 SET_DIAG -> OK
+    告警变化：NORMAL -> WARN（filt=2549mV）
+    故障恢复：STUCK 卡死（t=1991401ms，span=3048mV，当前故障：无）
+    告警变化：WARN -> CRIT（filt=3038mV）
+    故障确认：STUCK 卡死（t=1995441ms，span=5mV，当前故障：STUCK）
+    告警变化：CRIT -> WARN（filt=2870mV）
+    告警变化：WARN -> NORMAL（filt=2305mV）
+    故障恢复：STUCK 卡死（t=2008571ms，span=1262mV，当前故障：无）
+    故障确认：STUCK 卡死（t=2014631ms，span=12mV，当前故障：STUCK）
+    断开：已断开 COM5（界面数据保留，重连后可继续）
+
+>>> 等待人工动作：断线期间把电位器拧到另一个位置（制造变化）
+>>> 完成后请让执行代理创建 <工作目录>\_8d\go2.flag
+>>> 收到人工完成信号，继续
+>> 点击 连接（重连）
+
+===== 09_D12_reconnected   16:30:01 =====
+[pix]        <工作目录>\_8d\shots\09_D12_reconnected.png
+[conn]       已断开
+[level]      NORMAL
+[fault]      STUCK 卡死   last=2128761 ms  确认  span=10 mV
+[diag_chk]   True
+[table_rows] 4
+[samples]    13512   drops=0   errs=0 / 0 / 0   gaps=-   fgaps=-
+[log_tail]
+    故障恢复：STUCK 卡死（t=2008571ms，span=1262mV，当前故障：无）
+    故障确认：STUCK 卡死（t=2014631ms，span=12mV，当前故障：STUCK）
+    断开：已断开 COM5（界面数据保留，重连后可继续）
+    已连接 COM5
+    查询故障状态（连接后自动）
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=2115838ms）
+    故障恢复：STUCK 卡死（t=2122701ms，span=219mV，当前故障：无）
+    故障确认：STUCK 卡死（t=2128761ms，span=10mV，当前故障：STUCK）
+    断开：已断开 COM5（界面数据保留，重连后可继续）
+
+===== 全程日志（GUI 文本通道）=====
+    已连接 COM5
+    查询故障状态（连接后自动）
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=1925036ms）
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    故障诊断：关闭（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    查询故障状态
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=1934883ms）
+    故障诊断：使能（等 ACK 确认）
+    应答 SET_DIAG -> OK
+    告警变化：NORMAL -> WARN（filt=2549mV）
+    故障恢复：STUCK 卡死（t=1991401ms，span=3048mV，当前故障：无）
+    告警变化：WARN -> CRIT（filt=3038mV）
+    故障确认：STUCK 卡死（t=1995441ms，span=5mV，当前故障：STUCK）
+    告警变化：CRIT -> WARN（filt=2870mV）
+    告警变化：WARN -> NORMAL（filt=2305mV）
+    故障恢复：STUCK 卡死（t=2008571ms，span=1262mV，当前故障：无）
+    故障确认：STUCK 卡死（t=2014631ms，span=12mV，当前故障：STUCK）
+    断开：已断开 COM5（界面数据保留，重连后可继续）
+    已连接 COM5
+    查询故障状态（连接后自动）
+    应答 GET_DIAG -> OK
+    状态同步：当前故障 STUCK（t=2115838ms）
+    故障恢复：STUCK 卡死（t=2122701ms，span=219mV，当前故障：无）
+    故障确认：STUCK 卡死（t=2128761ms，span=10mV，当前故障：STUCK）
+    断开：已断开 COM5（界面数据保留，重连后可继续）
+
+===== 结束 =====

@@ -9,7 +9,8 @@
   串口           : COM5  115200 8N1  timeout=0.05
   固件版本宏     : APP_FW_VERSION = 0x0500
   注入开关       : APP_DEBUG_INJECT = 1（1 = 注入版）
-  工程目录       : C:\Users\26313\Desktop\单通道模拟量采集与故障监测终端
+  工程目录       : <项目目录>
+  [脱敏] 本机绝对路径已替换为 "<项目目录>"；本文件无校验和记录，故无需同步校验值。
 
 [1] 基线计数器
   t=91197 ms  n=9119  drop=0  adc_err=20  uart_err=0  rxf=0  frm=0
