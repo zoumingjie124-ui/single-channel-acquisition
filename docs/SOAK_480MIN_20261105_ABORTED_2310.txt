@@ -1,0 +1,2 @@
+port=COM5  duration=480 min  开始 2026-11-05 23:08:57
+[   60s] SAMPLE 6001 (+6001 ) STAT 60 (+60 ) | drops=0     frame_err=0    adc_err=0   uart_err=2   rx_err=0   | seq8缺口=0    整帧丢失=0   解析错=0

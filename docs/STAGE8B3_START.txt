@@ -126,3 +126,52 @@ Stage 8B-3 起点记录（8 小时，诊断开 / en=1）
        Time-Service（ID 35/37）与 Kernel-General（ID 1）事件日志，
        确认窗口内没有时钟阶跃；若出现阶跃，按 8B-2 的 §8.3 同法给出"表观值 / 真实值"。
     6) 归档日志（改名为 SOAK_480MIN_20261105_X.txt）、记录大小与 SHA-256，再更新 R3/R20。
+
+九、本次正式 8B-3（2026-11-05 23:10 起）——起点与基线
+
+  9.1 起跑前发生了什么（如实记）
+    23:07 前后 用户重新插拔 USB —— 板子**重新上电**，uptime 归零；
+              23:08:14 首读 t=48804 ms，说明上电约在 23:07:25。
+    由此产生两个必须处理的偏差：
+      (a) 诊断被复位为 **en=0**（参数未持久化，Stage 9 未做）——8B-3 要求 en=1；
+      (b) 上电瞬间 **uart=2 / fe=2 / cmd=0/16** 非零（与 11-04 那次 frm=2/fe=2/uart=2/cmd=0/17 同型）。
+    处理：23:08:38 发 `diag on` → `OK diag on (stuck detection enabled)`，en=0→1。
+
+  9.2 第一次起跑（已作废）
+    23:08:57 启动，基线带着 uart=2 / fe=2 / cmd err=16。
+    按 §8.3"发现非 0 必须先写明来源再决定是否复位"，判定：这 5 项来自上电瞬间
+    串口线上的无效字节（cmd err 16 条 = 被当成命令的噪声），**不是本轮采集产生的**。
+    为避免 8 小时的总结出现"uart_err=2"被误读为 FAIL，**选择复位重跑**。
+    23:10:22 终止，运行 1 min 28 s，1 条打点（60 s，全 0 除 uart_err=2）。
+    残留：`docs/SOAK_480MIN_20261105_ABORTED_2310.txt`（215 B，
+          SHA-256 `3b6910989759ee4d65adc53c83d0d539aeebc717de8350277bacb33e02c19eee`），**不构成结果**。
+
+  9.3 reset 与 T0（正式）
+    23:10:36.617  发 `reset` → `OK counters cleared`
+    post-reset    STAT t=196325ms n=553 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=0/0 txd=0B
+                  ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+                  DIAG en=1 state=2 conf=0 span=10 blk=30 unev=0 mask=1 rep=1
+    **T0 = 2026-11-05 23:10:46.618**
+      STAT   : t=200795ms n=1000 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=0/0 txd=0B
+      ERRSRC : ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      DIAG   : en=1 state=2 conf=0 span=10 blk=73 unev=0 mask=1 rep=1
+    说明：reset 只清计数，`en` 保持 1；`conf` 被清零，随后设备**重新判为卡死**再累加
+          （运行中 conf 由 0→1 属预期，不是误报；对比 X2 是 1→1、增量 0）。
+
+  9.4 起跑与判据
+    起跑：2026-11-05 **23:10:56**（日志头 `port=COM5 duration=480 min`）
+    结束：约 2026-11-06 **07:10:56**，预期 479 条打点（60 s … 28740 s）
+    首点：[60s] SAMPLE 6001 (+6001) STAT 60 (+60) | drops=0 frame_err=0 adc_err=0 uart_err=0 rx_err=0
+          | seq8缺口=0 整帧丢失=0 解析错=0 —— **全 0**
+    判据：仍按 §8.1 的 **差值 = 终点 − T0**；因 T0 各项均为 0，本轮 差值 ≡ 绝对值，
+          报告里两种写法数值相同，仍注明口径以防复用出错。
+    H11 基准：uptime0 = 200795 ms @ 23:10:46.618（与墙钟成对），终点需同样成对读取。
+
+  9.5 起跑条件核对（逐项）
+    [x] W32Time Parameters\Type = NoSync；w32time 服务 Stopped / Disabled
+    [x] 睡眠 0/0、休眠 0/0、混合睡眠 0/0；供电 AC（BatteryStatus=2）
+    [x] COM5 | LOCATION=1-2.1.3 在位、无其它程序占用
+    [x] docs/SOAK_480MIN.txt 起跑前不存在
+    [x] 诊断 en=1（8B-3 要求开启态）
+    [x] T0 的 STAT/ERRSRC/DIAG 三行 + 墙钟已抄录（见 9.3）
+    [ ] PA1 / 电位器全程不动、不按 NRST、不拔插 USB —— 需用户配合，跑完才能勾
