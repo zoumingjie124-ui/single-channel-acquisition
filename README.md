@@ -101,8 +101,8 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
     ├── STAGE8_PLAN.md                **Stage 8 收尾验证计划（R15/R16/R20/R21/R2）**
     ├── STAGE8B_REPORT.md             **Stage 8B 1h（Y2/X2）与 8h（8B-2）长跑报告 + 8B-2 一次 NTP 校时计数台阶分析**
     │                                 （该分析**只解释 8B-2 的台阶**，**不解释** 11-04 早期两轮丢帧；后者原因仍未定论）
-    ├── STAGE8D_EVIDENCE.md           **Stage 8D / R21：GUI 按钮连真板证据（D-1~D-12 + P-1~P-8，9 张截图）**
-    ├── stage8d/                      8D 原始证据：`STAGE8D_LOG.txt`（含 GUI 文本通道全程日志）+ 9 张窗口截图
+    ├── STAGE8D_EVIDENCE.md           **Stage 8D / R21：GUI 按钮连真板证据（D-1~D-12 + P-1~P-8；5 张可用 GUI 截图，D-9/D-4/D-10/D-12 以日志为证）**
+    ├── stage8d/                      8D 原始证据：`STAGE8D_LOG.txt`（含 GUI 文本通道全程日志）+ 5 张裁剪后的 GUI 截图 + 归档脚本 `run_8d.py`（脱敏）
     └── STAGE1–4 阶段报告与原始日志（STAGE1_ADC_RECOVERY / STAGE2_ADC_LINEARITY /
         STAGE3_UART_DMA / STAGE3_GUARD / STAGE4_C_UNIT_TESTS + *_RAW.txt）
 ```
