@@ -1,0 +1,83 @@
+Stage 8B-2 起点记录（8 小时，诊断关闭 / en=0）
+生成时间：2026-11-04 23:27（手动记录，非脚本生成）
+================================================================
+
+一、设备与链路（实测）
+  串口      : COM5 | USB-SERIAL CH340 | USB VID:PID=1A86:7523 | LOCATION=1-2.1.3
+  独占性    : 单独打开/关闭成功，无其它进程占用
+  固件      : Code=22468  RO-data=1076  RW-data=148  ZI-data=4972
+              依据 MDK-ARM/build_7c2b.log（2026-11-03 23:14）与 build_final.log（23:23），两次一致；
+              MDK-ARM/flash_7c2.log: "Erase Done. Programming Done. Verify OK. ... Flash Load finished at 23:14:26"
+              自 11-03 23:14 烧录后未再重烧（11-04 各轮均沿用）。固件无版本读回命令，
+              串口侧无法直接读回 Code，此为"烧录记录 + 未重烧"的推定，不是设备自报值。
+
+二、reset 前的历史计数（**必须保留，不得与本轮混算**）
+  读取时刻  : 2026-11-04 23:24:20
+  STAT      : t=60733ms n=6073 drop=0 adc=0 uart=2 rxf=0 frm=2 chg=0 cmd=0/17 txd=0B
+  ERRSRC    : ore=0 fe=2 ne=0 pe=0 pto=0 rxrst=0/0
+  DIAG      : en=0 state=0 conf=0 span=0 blk=0 unev=0 mask=0 rep=0
+
+  复核（23:24:36–23:24:47，连发 4 条 stat，2 条 \r + 2 条 \r\n）：
+  上述 uart=2 / frm=2 / fe=2 / cmd=0/17 **四次读取完全不变**，即不是读取动作造成的，
+  而是开机后第一分钟内产生（由 t=60733ms 反推 boot ≈ 23:23:19）。
+  这 2 次帧格式错 / 2 次 UART 错 / 17 次命令错属于**本轮测试之前的历史计数**，
+  本轮判定以 reset 之后为基线，历史值在此留档，不隐藏、也不计入本轮 FAIL 依据。
+
+三、reset 操作
+  发送时刻  : 2026-11-04 23:26:03.354
+  命令      : reset\r          （协议内文本命令，清计数并推一帧 STAT）
+  设备应答  : "[OK counters cleared"
+  说明      : 未改固件、未改判据、未动诊断开关（reset 前后 DIAG en 均为 0）。
+
+四、reset 后的基线（**本轮 H1–H12 的起点**）
+  读取时刻  : 2026-11-04 23:26:07.236
+  STAT      : t=166805ms n=388 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=0/0 txd=0B
+  ERRSRC    : ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+  DIAG      : en=0 state=0 conf=0 span=0 blk=0 unev=0 mask=0 rep=0
+
+  自检：t=166805ms 与墙钟 23:26:07.236 反推 boot ≈ 23:23:20，与 reset 前一致 → 本次未发生复位；
+       n=388 为 reset 后累计样本数，388 / 3.88 s ≈ 100 Hz，与设计一致。
+
+五、基线判定（预设门槛）
+  frm=0 ✓   fe=0 ✓   uart=0 ✓   cmd=0/0 ✓
+  drop=0 ✓  adc=0 ✓  rxf=0 ✓   chg=0 ✓   txd=0B ✓
+  ore=0 ✓   ne=0 ✓   pe=0 ✓    pto=0 ✓   rxrst=0/0 ✓
+  DIAG en=0 ✓  state=0 ✓  conf=0 ✓  span=0 ✓  blk=0 ✓  unev=0 ✓  mask=0 ✓  rep=0 ✓
+  → 基线全部满足门槛，允许起跑。
+
+六、H11 基线（正式口径：|Δuptime − Δwall| / Δwall）
+  基准点 T0 : uptime0 = 166805 ms   @ 墙钟 2026-11-04 23:26:07.236
+  conf0     : 0
+  终点 T1   : 待明早 soak 结束后立即读取 STAT，取 uptime_end 与对应墙钟
+  说明      : T0→T1 的区间包含"reset 完成 → soak 启动"之间的空档
+              （23:26:07.236 → 23:28:21 ≈ 134 s），不影响时基偏差的测量
+              （只要求两端同一时刻的 uptime 与墙钟成对）；区间总长约 8 h 02 min。
+
+七、启动方式与约束
+  启动时刻  : 2026-11-04 23:28:21（日志头：port=COM5  duration=480 min  开始 2026-11-04 23:28:21）
+  启动方式  : **由 AI 直接启动的独立无窗口进程**（`python host\tools\soak.py 480 COM5`），
+              **不是**用户手动开 CMD 窗口。原计划的 B2（用户自建 CMD）未采用；
+              宿主侧两次尝试创建完全脱离会话的进程均被运行环境安全策略拦截，
+              最终以受管后台进程启动。**风险：该进程随 WorkBuddy 退出而终止**；
+              若中途关闭应用，日志会停在最后一条打点，只能算部分记录。
+  首行验证  : 2026-11-04 23:29（开跑约 70 s）读到第一条打点
+              `[   60s] SAMPLE 6001 (+6001 ) STAT 60 (+60 ) | drops=0 frame_err=0 adc_err=0
+               uart_err=0 rx_err=0 | seq8缺口=0 整帧丢失=0 解析错=0`
+              → 采集与统计正常，日志开始累积。
+  日志      : soak.py 固定写 docs\SOAK_480MIN.txt；结束后另存为 SOAK_480MIN_20261104_N.txt
+  时长      : 480 分钟（结束约 2026-11-05 07:28）
+  约束      : 中途不重启、不拔线、不换端口、不打开第二个串口程序；
+              主机保持不睡眠（电源计划 睡眠 0/0、休眠 0/0、USB 选择性暂停关）。
+  失败即记  : 任一门槛不过记 FAIL，不重跑覆盖、不改判据。
+
+八、运行期间的宿主环境变更（2026-11-04 23:33，为避免 Windows 更新在后半夜重启打断测试）
+  改动项    : Windows 更新"活动时间"（HKLM\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings）
+              ActiveHoursStart: 8 → 22      ActiveHoursEnd: 0 → 15
+              回读确认：22:00 → 15:00（17 小时），覆盖本轮 23:28–07:28 全程；
+              下一个允许自动重启的窗口为次日 15:00–22:00，晚于测试结束。
+  改动原因  : 原活动时间 8:00–0:00，重启窗口 00:00–08:00 与本轮重叠。
+  旁证      : RebootRequired=False、CBS RebootPending=False（无待重启）；
+              wuauserv 状态 Stopped / StartType Manual；UpdateOrchestrator 下无可用重启任务。
+  未改动    : 电源计划（睡眠/休眠/USB 选择性暂停原本已全为 0）、固件、判据。
+  恢复      : 测试结束后应把 ActiveHoursStart 恢复为 8、ActiveHoursEnd 恢复为 0。
+  残余风险  : 手动/紧急更新不受活动时间约束；WorkBuddy 退出会导致 soak 进程终止。
