@@ -109,7 +109,7 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
     ├── STAGE8_PLAN.md                **Stage 8 收尾验证计划（R15/R16/R20/R21/R2）**
     ├── STAGE8B_REPORT.md             **Stage 8B 报告：1h（Y2/X2）、8h 诊断关（§8 = 8B-2）、8h 诊断开（§9 = 8B-3）+ 8B-2 一次 NTP 校时计数台阶分析**
     │                                 （该分析**只解释 8B-2 的台阶**，**不解释** 11-04 早期两轮丢帧；后者原因仍未定论）
-    ├── STAGE8D_EVIDENCE.md           **Stage 8D / R21：GUI 按钮连真板证据（D-1~D-12 + P-1~P-8；5 张可用 GUI 截图，D-9/D-4/D-10/D-12 以日志为证）**
+    ├── STAGE8D_EVIDENCE.md           **Stage 8D / R21：GUI 按钮连真板证据（D-1~D-12 + P-1~P-8；5 张 GUI 截图（仅覆盖窗口左半），D-9/D-4/D-10/D-12 以日志为证）**
     ├── stage8d/                      8D 原始证据：`STAGE8D_LOG.txt`（含 GUI 文本通道全程日志）+ 5 张裁剪后的 GUI 截图 + 归档脚本 `run_8d.py`（脱敏）
     └── STAGE1–4 阶段报告与原始日志（STAGE1_ADC_RECOVERY / STAGE2_ADC_LINEARITY /
         STAGE3_UART_DMA / STAGE3_GUARD / STAGE4_C_UNIT_TESTS + *_RAW.txt）
@@ -289,7 +289,7 @@ CRC 只能发现内容被改坏，发现不了整帧丢失；SEQ 不连续才能
 
 ## 8. 已知限制
 
-1. **上板验证做到十二轮**：10 分钟连续采集、零点与满量程、HT 修复（含反向对照）、
+1. **上板验证包括**：10 分钟连续采集、零点与满量程、HT 修复（含反向对照）、
    ADC 故障恢复（Stage 1）、全量程线性扫掠（Stage 2）、UART/DMA 异常 + 加固 A/B（Stage 3）、
    1 小时长跑（Stage 6）、故障确认/恢复 + 非法命令（Stage 7C）、`GET_DIAG` 快照与断线重连（Stage 7C-2）、
    1h 对照（Y2/X2）、诊断关 8 小时长跑（Stage 8B / 8B-2，480 min / 2880109 帧 PASS）、
