@@ -1,7 +1,7 @@
 # STM32 单通道模拟量采集与故障监测终端
 
 > - **是什么**：STM32F103C8T6 单通道模拟量采集与故障监测终端 —— 100 Hz ADC+DMA 采样 → 移动平均 → 三级告警 → 卡死诊断 → 二进制帧协议上报 → Python 上位机（双曲线 / 在线阈值 / CSV / 故障快照）。
-> - **已实测 · PC 离机（A 类）**：Keil 编译 `0 Error / 0 Warning`、`Code=22468 RO=1076 RW=148 ZI=4972`（来源 `MDK-ARM/build_check3.log`，**2026-11-05 13:16**；**本轮 11-06 的文档改动未重编译，不是本轮编译结果**）；PC 单测 **72 项全绿**（`python -m unittest discover -s host/tests`，本轮实跑）；固件 C 断言 **1041 条**（`cd fw_tests && run_tests.bat`，需 gcc；本轮未重跑，沿用既有记录）。
+> - **已实测 · PC 离机（A 类）**：Keil 编译 `0 Error / 0 Warning`、`Code=22468 RO=1076 RW=148 ZI=4972`（来源 `MDK-ARM/build_check3.log`，**2026-11-05 13:16**；**2026-11-06 的文档改动未重编译，该日志不是 11-06 的编译结果**）；PC 单测 **72 项全绿**（`python -m unittest discover -s host/tests`，2026-11-06 实跑）；固件 C 断言 **1041 条**（`cd fw_tests && run_tests.bat`，需 gcc；2026-11-06 未重跑，沿用既有记录）。
 > - **已实测 · 真板（B/C 类）**：**8B-2（`en=0`）与 8B-3（`en=1`）各一次 8 小时长跑**——**统计级证据、输入全程静置、H1–H12 全 PASS**；1h 对照 Y2/X2 PASS；8D 为 **GUI 控件自动化 + 人手拧电位器**，**D-1~D-12 已执行，P-6 仅部分满足**（判定依据见 `TEST_INVENTORY` R21 与 `docs/STAGE8D_EVIDENCE.md`，其中 D-12 判别力偏弱）。
 > - **明确没测**：R2 绝对电压精度（等万用表）、R19 真实传感器失效、R1 真实 HAL 重挂失败、R17 多故障快照（仅白盒单测）、R15 TX 环真实满载、R16 100 ms 重试节流；**11-04 两轮 1h 丢帧至今未定位**，因此 R3 仍记"中"——两态各通过一次 ≠ 任意工况长期稳定。
 > - **怎么复跑**：编译 `cd MDK-ARM` 后 `UV4.exe -b DataAcq.uvprojx -j0 -o build.log`（文件名已核对：仓库内确为 `MDK-ARM/DataAcq.uvprojx`）；单测 `python -m unittest discover -s host/tests` 与 `cd fw_tests && run_tests.bat`；上位机 `python host/main.py`；长跑 `python host/tools/soak.py 60 COM5`（**先列端口再抄命令**，见 §5.1）。
@@ -97,6 +97,7 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
     ├── SOAK_PLAN.md            1 h / 8 h 长跑记录表 + H1–H12 门槛 + 电源设置
     ├── SOAK_60MIN_RECORD.md    1 小时长跑实测记录（脚本生成，非手填）
     ├── SOAK_480MIN_RECORD.md   **8 小时（480 min，诊断关）长跑实测记录（2880109 帧全 PASS）**
+    ├── SOAK_480MIN_RECORD_8B3.md **8 小时（480 min，诊断开 en=1）长跑实测记录（2880407 帧全 PASS）**
     ├── HW_VERIFY_NEXT.md       早期硬件验证清单（已被 STAGE8_PLAN.md 取代，仅留存历史）
     ├── STAGE7_FAULT_DIAG_DESIGN.md   多类型故障诊断设计审查（未改固件）
     ├── STAGE7B_STUCK_DIAG.md         卡死诊断模块 + 121 条单测
@@ -106,7 +107,7 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
     ├── STAGE7C2_GET_DIAG.md          快照 + TX 失败恢复 实现报告
     ├── STAGE7C2_FINAL.md             7C-2 最终验收报告（四层证据分级）
     ├── STAGE8_PLAN.md                **Stage 8 收尾验证计划（R15/R16/R20/R21/R2）**
-    ├── STAGE8B_REPORT.md             **Stage 8B 1h（Y2/X2）与 8h（8B-2）长跑报告 + 8B-2 一次 NTP 校时计数台阶分析**
+    ├── STAGE8B_REPORT.md             **Stage 8B 报告：1h（Y2/X2）、8h 诊断关（§8 = 8B-2）、8h 诊断开（§9 = 8B-3）+ 8B-2 一次 NTP 校时计数台阶分析**
     │                                 （该分析**只解释 8B-2 的台阶**，**不解释** 11-04 早期两轮丢帧；后者原因仍未定论）
     ├── STAGE8D_EVIDENCE.md           **Stage 8D / R21：GUI 按钮连真板证据（D-1~D-12 + P-1~P-8；5 张可用 GUI 截图，D-9/D-4/D-10/D-12 以日志为证）**
     ├── stage8d/                      8D 原始证据：`STAGE8D_LOG.txt`（含 GUI 文本通道全程日志）+ 5 张裁剪后的 GUI 截图 + 归档脚本 `run_8d.py`（脱敏）
@@ -288,17 +289,19 @@ CRC 只能发现内容被改坏，发现不了整帧丢失；SEQ 不连续才能
 
 ## 8. 已知限制
 
-1. **上板验证做到十轮**：10 分钟连续采集、零点与满量程、HT 修复（含反向对照）、
+1. **上板验证做到十二轮**：10 分钟连续采集、零点与满量程、HT 修复（含反向对照）、
    ADC 故障恢复（Stage 1）、全量程线性扫掠（Stage 2）、UART/DMA 异常 + 加固 A/B（Stage 3）、
    1 小时长跑（Stage 6）、故障确认/恢复 + 非法命令（Stage 7C）、`GET_DIAG` 快照与断线重连（Stage 7C-2）、
-   1h 对照（Y2/X2）与诊断关 8 小时长跑（Stage 8B / 8B-2，480 min / 2880109 帧 PASS）。
+   1h 对照（Y2/X2）、诊断关 8 小时长跑（Stage 8B / 8B-2，480 min / 2880109 帧 PASS）、
+   **诊断开 8 小时长跑（Stage 8B-3，480 min / 2880407 帧 PASS，2026-11-05 23:10 – 11-06 07:10）**、
+   **GUI 连真板（Stage 8D：GUI 控件自动化 + 人手拧电位器，D-1~D-12 执行、P-6 仅部分满足）**。
    **仍未做**：告警滞回手感、绝对电压精度、真实 HAL 重挂失败、
    TX 环真实满载、真实传感器诊断 ——
    清单与关闭条件见 `docs/TEST_INVENTORY.md` §5（R1–R21）与 `docs/STAGE8B_REPORT.md`。
 2. 断开串口后不自动重连（手动点连接）。重连成功后会自动发一次 `GET_DIAG` 对齐故障状态。
 3. **故障边沿可能被合并**：发送环阻塞期间的多次确认/恢复，恢复后只提交当时的状态，
    不补发历史事件。这是有意的取舍，漏掉的边沿由 `GET_DIAG` 快照兜底（协议见 `PROTOCOL.md` §4.8.1）。
-4. `SEQ` 与 `seq8` 都是 8 位，连续丢超过 256 帧时缺口统计会失真（实际不会发生）。
+4. `SEQ` 与 `seq8` 都是 8 位：**恰为 256 整数倍的连续丢失不可见**（8 位计数回绕后差值算成 0）。至今所有轮次都未观察到这种情况，**但这属于检测盲区，不能当作"没有丢帧"的证明**。
 5. 阈值掉电不保存，重启回默认 2400/3000；**故障诊断默认关闭**，需主机下发 `SET_DIAG` 才启用。
 6. 单通道；多通道需要改 ADC 扫描模式与 DMA 缓冲布局。
 7. 未使用 FreeRTOS，裸机超级循环。
