@@ -1,5 +1,11 @@
 # STM32 单通道模拟量采集与故障监测终端
 
+> - **是什么**：STM32F103C8T6 单通道模拟量采集与故障监测终端 —— 100 Hz ADC+DMA 采样 → 移动平均 → 三级告警 → 卡死诊断 → 二进制帧协议上报 → Python 上位机（双曲线 / 在线阈值 / CSV / 故障快照）。
+> - **已实测**：Keil 编译 `0 Error / 0 Warning`（`Code=22468`）；PC 单测 **72 项全绿**（`python -m unittest discover -s host/tests`）；固件 C 断言 1041 条（`fw_tests/run_tests.bat`，需 gcc）；**8B-2（`en=0`）与 8B-3（`en=1`）各一次 8 小时长跑，H1–H12 全 PASS**；1h 对照 Y2/X2 PASS；GUI 连真板 8D 跑完 D-1~D-12。
+> - **明确没测**：R2 绝对电压精度（等万用表）、R19 真实传感器失效、R1 真实 HAL 重挂失败、R17 多故障快照（仅白盒单测）、R15 TX 环真实满载、R16 100 ms 重试节流；**11-04 两轮 1h 丢帧至今未定位**，因此 R3 仍记"中"——两态各通过一次 ≠ 任意工况长期稳定。
+> - **怎么复跑**：编译 `cd MDK-ARM` 后 `UV4.exe -b DataAcq.uvprojx -j0 -o build.log`；单测 `python -m unittest discover -s host/tests` 与 `cd fw_tests && run_tests.bat`；上位机 `python host/main.py`；长跑 `python host/tools/soak.py 60 COM5`（**先列端口再抄命令**，见 §5.1）。
+> - **证据入口**：`docs/STAGE8B_REPORT.md`（§8 = 8B-2，§9 = 8B-3）、`docs/SOAK_480MIN_RECORD*.md`、`docs/TEST_INVENTORY.md` §5（R1–R21）、`docs/STAGE8D_EVIDENCE.md`；分歧与边界都写在这些文件里，README 只做索引。
+
 > **版本 v5.2.0**　构建 `Code=22468 / RO 1076 / RW 148 / ZI 4972`（与 8B-2 长跑实测固件一致）；交付包 `单通道模拟量采集与故障监测终端_v5.2.0.zip`
 
 STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动平均 → 三级告警状态机  
