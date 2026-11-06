@@ -1,0 +1,87 @@
+=== Stage 8A：TX 环满载（命令放大）原始记录 ===
+开始时间 : 2026-11-06 09:38:18
+端口     : COM5 @ 115200 8N1
+灌包参数 : 每条 stat\r，间隔 10 ms，持续 4.50 s（约 450 条）
+握手     : 轮询 go.flag，超时 300 s；收到后倒计时 20 s
+复现命令 : python docs/stage8a/flood_stat.py --port COM5 --flood-sec 4.5 --period-ms 10 --wait-flag docs/stage8a/go.flag --timeout 300 --countdown 20
+说明     : 仅发 stat / reset / diag on 三条既有文本命令；不改固件、不改配置
+
+[步0] reset @ 09:38:18.268
+[步0] 基线（reset 后）:
+   STAT   STAT t=2479714ms n=150 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=0/0 txd=0B
+   ERRSRC ERRSRC 
+   DIAG   <未收到>
+
+[步1] diag on @ 09:38:19.782
+   OK diag on (stuck detection enabled)
+[步1] 等待卡死确认（最多 6 s）…
+   DIAG en=1 state=2 conf=0 span=12 blk=40 unev=0 mask=1 rep=1
+[步1] 此时已收 FAULT 帧数 = 0（期望 ≥1：请保持电位器卡死不动）
+
+[握手] >>> 请把电位器拧到卡死位置并按住 <<<
+[握手] >>> 准备好后创建文件：docs/stage8a/go.flag <<<
+[握手] 等待中（超时 300 s）…
+[握手] 收到 go.flag @ 09:38:58.763
+
+[倒计时] 20
+[倒计时] 19
+[倒计时] 18
+[倒计时] 17
+[倒计时] 16
+[倒计时] 15
+[倒计时] 14
+[倒计时] 13
+[倒计时] 12
+[倒计时] 11
+[倒计时] 10
+[倒计时] 9
+[倒计时] 8
+[倒计时] 7
+[倒计时] 6
+[倒计时] 5
+[倒计时] 4
+[倒计时] 3
+[倒计时] 2
+[倒计时] 1
+[倒计时] 倒计时期间排空帧（不计入窗口）: SAMPLE=5486, STAT=55
+[锚点1] STAT t=2537948 ms @ 09:39:18.007
+[步2] >>> 开始灌命令，请立刻拧开电位器（>100 mV）并保持 3 s <<<
+[步2] 停灌 @ 09:39:23.314（发送 427 条，窗口 4.50 s）—— 一声低音长鸣 = 停灌
+[步2] 窗口内收到二进制帧: SAMPLE=350, STAT=399, FAULT=1
+[步2] 窗口内 FAULT 帧数 = 1（A-1 期望 0）
+[步2] 窗口内漏出的文本行 16 条：
+      DIAG en=1 state=2 conf=0 span=14 blk=65 unev=0 mask=1 rep=1
+      ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      DIAG en=1 state=2 conf=0 span=14 blk=46 unev=0 mask=1 rep=1
+      ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      DIAG en=1 state=2 conf=0 span=14 blk=47 unev=0 mask=1 rep=1
+      ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      DIAG en=1 state=2 conf=0 span=14 blk=48 unev=0 mask=1 rep=1
+      ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      DIAG en=1 state=2 conf=0 span=14 blk=49 unev=0 mask=1 rep=1
+      ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      DIAG en=1 state=2 conf=0 span=14 blk=50 unev=0 mask=1 rep=1
+      ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      DIAG en=1 state=2 conf=0 span=14 blk=51 unev=0 mask=1 rep=1
+      ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+      DIAG en=1 state=2 conf=0 span=14 blk=52 unev=0 mask=1 rep=1
+      ERRSRC ore=0 fe=0 ne=0 pe=0 pto=0 rxrst=0/0
+
+[步4] 停灌后密集读取 8 s（每 0.4 s 一次 stat），用于界定 mask 何时变 0 …
+[步4] 收到 20 组 DIAG/STAT 采样
+      09:39:24.430  t=2543184ms state=0 mask=0 rep=0 txd=53501B (首个采样)
+      09:39:28.929  t=2548475ms state=2 mask=1 rep=1 txd=54490B (mask 变化)
+      09:39:32.199  t=2551754ms state=2 mask=1 rep=1 txd=54490B (末次采样)
+
+[步6] 请把电位器拧回卡死位置并保持 —— 两声低音 = 现在开始统计 6 s
+
+=== 汇总 ===
+设备时间映射(锚点1→停灌后首采样): rate=815.2093 ms/ms，t_stop(设备) ≈ 2542274 ms
+mask 首次为 0 @ 09:39:24.430（设备 t=2543184 ms），距停灌 +910 ms
+ACTIVE→CLEAR 需 2 个连续干净 1 s 块 ⇒ 边沿 ≤ mask0 - 1000 ms = -90 ms（相对停灌）
+全程收到的 FAULT 帧: 3 条
+   FAULT t_ms=2548401 event=1 active=1 value=12  收到@09:39:28.451  与停灌时刻差=+6127 ms
+   FAULT t_ms=2554461 event=2 active=0 value=444  收到@09:39:34.510  与停灌时刻差=+12187 ms
+   FAULT t_ms=2555471 event=1 active=1 value=4  收到@09:39:35.520  与停灌时刻差=+13197 ms
+
+=== 结束 2026-11-06 09:39:39 ===

@@ -1,0 +1,23 @@
+=== Stage 8A：TX 环满载（命令放大）原始记录 ===
+开始时间 : 2026-11-06 09:34:00
+端口     : COM5 @ 115200 8N1
+灌包参数 : 每条 stat\r，间隔 10 ms，持续 4.50 s（约 450 条）
+握手     : 轮询 go.flag，超时 420 s
+复现命令 : python docs/stage8a/flood_stat.py --port COM5 --flood-sec 4.5 --period-ms 10 --wait-flag docs/stage8a/go.flag --timeout 420
+说明     : 仅发 stat / reset / diag on 三条既有文本命令；不改固件、不改配置
+
+[步0] reset @ 09:34:00.936
+[步0] 基线（reset 后）:
+   STAT   STAT t=2222354ms n=151 drop=0 adc=0 uart=0 rxf=0 frm=0 chg=0 cmd=0/0 txd=0B
+   ERRSRC ERRSRC 
+   DIAG   <未收到>
+
+[步1] diag on @ 09:34:02.460
+   OK diag on (stuck detection enabled)
+[步1] 等待卡死确认（最多 6 s）…
+   DIAG en=1 state=2 conf=0 span=4 blk=40 unev=0 mask=1 rep=1
+[步1] 此时已收 FAULT 帧数 = 0（期望 ≥1：请保持电位器卡死不动）
+
+[握手] >>> 请把电位器拧到卡死位置并按住 <<<
+[握手] >>> 准备好后创建文件：docs/stage8a/go.flag <<<
+[握手] 等待中（超时 420 s）…
