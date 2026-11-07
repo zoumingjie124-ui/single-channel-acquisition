@@ -2,8 +2,8 @@
 
 > - **是什么**：STM32F103C8T6 单通道模拟量采集与故障监测终端 —— 100 Hz ADC+DMA 采样 → 移动平均 → 三级告警 → 卡死诊断 → 二进制帧协议上报 → Python 上位机（双曲线 / 在线阈值 / CSV / 故障快照）。
 > - **已实测 · PC 离机（A 类）**：Keil 编译 `0 Error / 0 Warning`、`Code=22468 RO=1076 RW=148 ZI=4972`（来源 `MDK-ARM/build_check3.log`，**2026-11-05 13:16**；**2026-11-06 的文档改动未重编译，该日志不是 11-06 的编译结果**）；PC 单测 **72 项全绿**（`python -m unittest discover -s host/tests`，2026-11-06 实跑）；固件 C 断言 **1041 条**（`cd fw_tests && run_tests.bat`，需 gcc；2026-11-06 未重跑，沿用既有记录）。
-> - **已实测 · 真板（B/C 类）**：**8B-2（`en=0`）与 8B-3（`en=1`）各一次 8 小时长跑**——**统计级证据、输入全程静置、H1–H12 全 PASS**；1h 对照 Y2/X2 PASS；8D 为 **GUI 控件自动化 + 人手拧电位器**，**D-1~D-12 已执行，P-6 仅部分满足**（判定依据见 `TEST_INVENTORY` R21 与 `docs/STAGE8D_EVIDENCE.md`，其中 D-12 判别力偏弱）。
-> - **明确没测**：R2 绝对电压精度（等万用表）、R19 真实传感器失效、R1 真实 HAL 重挂失败、R17 多故障快照（仅白盒单测）、R15 已尝试（方法达不到目的，目标场景——提交失败后的重试——未验证）、R16 100 ms 重试节流；**11-04 两轮 1h 丢帧至今未定位**，因此 R3 仍记"中"——两态各通过一次 ≠ 任意工况长期稳定。
+> - **已实测 · 真板（B/C 类）**：**8B-2（`en=0`）与 8B-3（`en=1`）各一次 8 小时长跑**——**统计级证据、输入全程静置、H1–H12 全 PASS**；1h 对照 Y2/X2 PASS；8D 为 **GUI 控件自动化 + 人手拧电位器**，**D-1~D-12 已执行，P-6 仅部分满足**；**R2 绝对精度已测**（2026-11-07）：零点 **PASS**（1.58 mV），满量程 **+1.69% FS**——误差已定量归因于参考电压假设（VDDA 实测 **3.245 V** ≠ 固件写死 3.300 V），ADC 自身 **< 0.3 LSB**（判定依据见 `TEST_INVENTORY` R21 与 `docs/STAGE8D_EVIDENCE.md`，其中 D-12 判别力偏弱）。
+> - **明确没测**：R19 真实传感器失效、R1 真实 HAL 重挂失败、R17 多故障快照（仅白盒单测）、R15 已尝试（方法达不到目的，目标场景——提交失败后的重试——未验证）、R16 100 ms 重试节流；**11-04 两轮 1h 丢帧至今未定位**，因此 R3 仍记"中"——两态各通过一次 ≠ 任意工况长期稳定。
 > - **怎么复跑**：编译 `cd MDK-ARM` 后 `UV4.exe -b DataAcq.uvprojx -j0 -o build.log`（文件名已核对：仓库内确为 `MDK-ARM/DataAcq.uvprojx`）；单测 `python -m unittest discover -s host/tests` 与 `cd fw_tests && run_tests.bat`；上位机 `python host/main.py`；长跑 `python host/tools/soak.py 60 COM5`（**先列端口再抄命令**，见 §5.1）。
 > - **证据入口**：`docs/STAGE8B_REPORT.md`（§8 = 8B-2，§9 = 8B-3）、`docs/SOAK_480MIN_RECORD*.md`、`docs/TEST_INVENTORY.md` §5（R1–R21）、`docs/STAGE8D_EVIDENCE.md`；分歧与边界都写在这些文件里，README 只做索引。
 
@@ -33,7 +33,7 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
 > - **Stage 7C** 故障协议上报 + 上位机：✅ 板级实测——使能后 **3.02 s** 确认（`span=9 mV`）、人手拧动 `span=187 mV` **恢复**、停手后再次确认；非法参数被拒、关闭诊断不伪造恢复（`docs/STAGE7C_FAULT_PROTOCOL.md`）
 > - **Stage 7C-2** `GET_DIAG` 状态快照 + TX 提交失败恢复：✅ 板级实测——**ACK 先于快照**（seq 46→47）、无故障/有故障快照字段正确、断线期间发生的恢复由重连快照给出真相、连续轮询抓到 **57 帧 `active=0`**；全程 915 帧 SEQ 异常 0（`docs/STAGE7C2_FINAL.md`）
 > - **Stage 8B** 1h 对照与 8h 长跑：✅ 同构建 `Code=22468` 完成 **Y2（诊断关 1h，360051 帧）PASS**、**X2（诊断开 1h，360050 帧 / 100.014 Hz）PASS**、**8B-2（诊断关 8 小时 / 480 min，2880109 帧 / 约 100.014 Hz；含一次 NTP 台阶，表观 100.0038 Hz）H1–H12 12/12 PASS**，drops·丢帧·解析错·复位·重连全 0（`docs/STAGE8B_REPORT.md`、`docs/SOAK_480MIN_RECORD.md`；另完成 **8B-3（诊断开 `en=1` 8 小时 / 480 min，2880407 帧 / 100.0141 Hz）H1–H12 全 PASS**（`docs/SOAK_480MIN_RECORD_8B3.md`、`STAGE8B_REPORT` §9）；含同构建早期两轮 1h FAIL 的**七轮**成组记录见 `TEST_INVENTORY` R3）
-> - 仍未测：**绝对电压精度（等万用表）**、**真实 HAL 重挂失败**、告警滞回手感、INL/DNL、**TX 环真实满载后的重试（已尝试，未验证——见 §7）**、**真实传感器诊断** —— 见 §7 与 `TEST_INVENTORY` §5（R1–R21）；**后续验证计划见 `docs/STAGE8_PLAN.md`**
+> - 仍未测：**真实 HAL 重挂失败**、告警滞回手感、INL/DNL、**TX 环真实满载后的重试（已尝试，未验证——见 §7）**、**真实传感器诊断** —— 见 §7 与 `TEST_INVENTORY` §5（R1–R21）；**后续验证计划见 `docs/STAGE8_PLAN.md`**
 
 ---
 
@@ -93,7 +93,7 @@ STM32F103C8T6 + HAL + Keil MDK。100Hz 定时器触发 ADC+DMA 采样 → 移动
     ├── TEST_REPORT.md          编译与测试总账（§1–§20，按时间累积）
     ├── TEST_INVENTORY.md       证据分级清单（PC / 真板 / 注入）+ 风险 R1–R21 ← **先看这个**
     ├── AUDIT_20261103.md       文档一致性核对 + App/HAL 分层边界复核
-    ├── CALIB_ABSOLUTE.md       绝对电压精度测试步骤（待万用表，未执行）
+    ├── CALIB_ABSOLUTE.md       绝对电压精度测试（**已执行 2026-11-07**：零点 PASS，满量程 +1.69% FS，归因于 VDDA 3.245 V）+ `CALIB_RAW.txt` 原始读数
     ├── SOAK_PLAN.md            1 h / 8 h 长跑记录表 + H1–H12 门槛 + 电源设置
     ├── SOAK_60MIN_RECORD.md    1 小时长跑实测记录（脚本生成，非手填）
     ├── SOAK_480MIN_RECORD.md   **8 小时（480 min，诊断关）长跑实测记录（2880109 帧全 PASS）**
@@ -265,7 +265,7 @@ CRC 只能发现内容被改坏，发现不了整帧丢失；SEQ 不连续才能
 | 接收停摆自动恢复              | ✅ Stage 3 加固 B：`rxstop` 后 **152 ms** 救回、3 分钟 9 次全成功 |
 | 告警滞回手感               | △ C 单测覆盖了边界（2350/2349、2950/2949）；**上板在阈值附近缓慢往返未做** |
 | 真实 HAL 重挂失败（`start_rx` 返回 BUSY） | ❌ **NOT TESTED**（风险 R1）                        |
-| 绝对电压精度               | ❌ **NOT TESTED**，等万用表测 VDDA（风险 R2）           |
+| 绝对电压精度               | ⚠ **部分关闭（2026-11-07 实测，B 口径）**：零点 **PASS**（+1.58 mV，≤5 mV）；满量程 **+54.75 mV（+1.69% FS）点估计超 1% 门槛**，但误差已定量归因于参考电压假设（VDDA 3.245 V vs 固件 3.300 V，理论 55.00 mV / 实测 54.75 mV，差 **0.25 mV ≈ 0.3 LSB**）；表 ±28 mV 使区间 **+0.83%~+2.55%** 跨门槛 → 既不能说"达标"也不能说"确定超标"；VDDA 同网络未验证；原始读数 `docs/CALIB_RAW.txt`、步骤与记录 `docs/CALIB_ABSOLUTE.md` §6（风险 R2） |
 | INL / DNL             | ❌ 无法测（固件不上报原始码）                             |
 | 1 小时连续运行               | ✅ 已实测：无诊断版 360047 帧 PASS（§17）；`Code=22468` **Y2（诊断关 1h，360051 帧）PASS**、**X2（诊断开 1h，360050 帧）PASS**（同构建早期两轮 1h FAIL 一并列于 R3/R20） |
 | 8 小时稳定性              | ✅ **通过（诊断关与诊断开两态各 8 h）**：8B-2（`en=0`）**480 min / 2880109 帧 / 约 100.014 Hz**（含一次 NTP 台阶，表观 100.0038 Hz）；8B-3（`en=1`）**480 min / 2880407 帧 / 100.0141 Hz**。两轮 H1–H12 全 PASS，drops·缺口·解析错·复位·重连全 0；**但 11-04 的两轮 1h 丢帧仍未定位，本行只说明"这两种配置各通过一次"，不等于任意工况长期稳定**（`docs/SOAK_480MIN_RECORD.md`、`docs/SOAK_480MIN_RECORD_8B3.md`、`docs/STAGE8B_REPORT.md` §8/§9，风险 R3 仍为**中**） |
@@ -296,7 +296,7 @@ CRC 只能发现内容被改坏，发现不了整帧丢失；SEQ 不连续才能
    1h 对照（Y2/X2）、诊断关 8 小时长跑（Stage 8B / 8B-2，480 min / 2880109 帧 PASS）、
    **诊断开 8 小时长跑（Stage 8B-3，480 min / 2880407 帧 PASS，2026-11-05 23:10 – 11-06 07:10）**、
    **GUI 连真板（Stage 8D：GUI 控件自动化 + 人手拧电位器，D-1~D-12 执行、P-6 仅部分满足）**。
-   **仍未做**：告警滞回手感、绝对电压精度、真实 HAL 重挂失败、
+   **仍未做**：告警滞回手感、真实 HAL 重挂失败、
    TX 环真实满载、真实传感器诊断 ——
    清单与关闭条件见 `docs/TEST_INVENTORY.md` §5（R1–R21）与 `docs/STAGE8B_REPORT.md`。
 2. 断开串口后不自动重连（手动点连接）。重连成功后会自动发一次 `GET_DIAG` 对齐故障状态。
