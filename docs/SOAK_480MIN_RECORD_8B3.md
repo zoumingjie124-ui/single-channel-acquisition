@@ -148,7 +148,13 @@ T1  uptime  = 29034427 ms @ 2026-11-06 07:11:16.173
    **`sc` 与 `sc.exe` 不能混**：cmd 里 `sc` 就是服务控制程序，但 PowerShell 里 `sc` 是 `Set-Content` 的别名，
    必须写 `sc.exe`（或改用 `Set-Service w32time -StartupType Manual`）。
    **不影响本轮判定，但关闭 Stage 8B 前必须处理完。**
+   【2026-11-07 后注】该项**已恢复**：`Parameters\Type = NTP`、`w32time = Running / Manual`，
+   并于 **2026/11/07 21:26:37** 成功对时一次（`Leap 0(无警告)`、`层次 5`、源 `time.windows.com,0x9`）。
+   过程与完整回读证据见 `docs/STAGE8B_REPORT.md` §9.6。以上正文为记录当时状态，未改动。
 2. R2（绝对精度）仍未测；8 小时只覆盖 `en=1` + 单一静置输入；温漂/慢性资源增长只到"8 小时未体现"。
+   【2026-11-07 后注】R2 已于同日 20:18–20:27 单独实测（与 8B-3 无关，本记录不涉及该项），
+   记 **部分关闭**：零点 PASS、满量程 1.66 %FS 点估计超门槛而区间跨门槛，
+   见 `CALIB_ABSOLUTE.md` §6、`TEST_REPORT.md` §21。以上正文为记录当时状态，未改动。
 
 ## 10. 归档
 
