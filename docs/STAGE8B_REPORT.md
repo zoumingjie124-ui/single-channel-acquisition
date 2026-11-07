@@ -560,15 +560,26 @@ seq8 缺口 0 | 整帧丢失 0 | 解析错误 0 | BOOT 0 | 链路中断 0
 - 板级实测、**统计级**证据；不是字节级全量验证（原始帧流未落盘）。
 - 只覆盖 `en=1` + 单一静置输入 + 单一链路/主机/构建；`en=0` 见 §8，两者互不替代。
 - **R2 绝对精度**：8B-3 期间未涉及；该项已于 2026-11-07 实测、记 **部分关闭**（见 `CALIB_ABSOLUTE.md` §6）；R19（真实传感器失效）仍为 NOT TESTED。
-- **环境还原项未完成：自动校时仍未恢复**（2026-11-06 08:58 回读）。
-  实测仍为 `Parameters\Type = NoSync`、`w32time = Stopped / **Disabled**`。两点必须讲清：
-  1) 非管理员改不动——写 `Type=NTP` 与启动服务均报"拒绝访问"；
-  2) **即使打开"自动设置时间"（只改 Type）也不够**：`w32time` 的**服务启动类型仍是 Disabled**，
-     必须由管理员改成**按需启动**并拉起服务，否则时间同步不会真正恢复。管理员命令：
-     `sc.exe config w32time start= demand` 然后 `net start w32time`。
-     **注意 `sc` 与 `sc.exe` 的区别**：在 **cmd** 里 `sc` 就是服务控制程序；但在 **PowerShell** 里
-     `sc` 是 `Set-Content` 的别名，直接敲 `sc config …` 会报错或误写文件——所以在 PowerShell 里
-     **必须写 `sc.exe`**（或改用 `Set-Service w32time -StartupType Manual`）。
-  该项**不影响本轮判定**，但属于"测试环境未还原"，关闭 Stage 8B 前必须处理完。
+- **环境还原项：自动校时已恢复，并已完成一次成功对时**。
+  - **历史**（2026-11-06 08:58 回读）：`Parameters\Type = NoSync`、`w32time = Stopped / **Disabled**`。
+  - **现状**（2026-11-07 21:26 回读，用户在"设置 → 时间和语言 → 日期和时间 → 自动设置时间"打开开关之后）：
+    - `Parameters\Type = **NTP**`（已由 `NoSync` 变为 `NTP`）；`w32time = **Running / Manual**`；
+    - **已成功对时一次**：`上次成功同步时间 2026/11/07 21:26:37`，`Leap 指示符 0(无警告)`、
+      `层次 5 (次引用 - 与(S)NTP 同步)`、`源 time.windows.com,0x9`、
+      `引用 ID 0x34E772B7（源 IP 52.231.114.183）`，`w32tm /query /peers` 由"挂起"转为
+      **状态: 运行中 / 模式 3 (客户端)**。
+    - 过程要点：开关打开后 `peers` 一度显示 **"状态: 挂起、剩余时间 ≈ 16177 s（约 4.5 h）"**
+      ——即"配置已就位但还没轮到对时"；以**管理员**执行 `w32tm /resync`（非管理员报"拒绝访问 0x80070005"）
+      后才当场完成。
+    - 诚实边界：本次回读的 `根分散 7.77 s` 偏大（刚同步、根分散尚未随轮询收敛），
+      **只用于证明"同步已发生且源为 time.windows.com"，不作时刻精度指标**；要谈精度需再回读一次。
+  - 两点操作教训（保留，便于复现）：1) 非管理员改不动——写 `Type=NTP`、启动服务、`/resync` 均报"拒绝访问"；
+    2) **仅打开"自动设置时间"（只改 Type）不一定够**：先前 `w32time` 的服务启动类型是 `Disabled`，
+    必须同时把启动类型改为**按需启动**并拉起服务。管理员命令：
+    `sc.exe config w32time start= demand` 然后 `net start w32time`。
+    **注意 `sc` 与 `sc.exe` 的区别**：在 **cmd** 里 `sc` 就是服务控制程序；但在 **PowerShell** 里
+    `sc` 是 `Set-Content` 的别名，直接敲 `sc config …` 会报错或误写文件——所以在 PowerShell 里
+    **必须写 `sc.exe`**（或改用 `Set-Service w32time -StartupType Manual`）。
+  - 该项**不影响本轮判定**（8B-3 的 H11 已单独按墙钟口径分析，见 §9.3）。
 - 归档：`docs/SOAK_480MIN_20261105_X.txt`，77,875 B，
   SHA-256 `cea4c8f50f23f1847c54b91ffe12b484d1be75f3aeedcc4298422c714bf0a76f`（改名前后一致）。
